@@ -4,7 +4,8 @@ An Elixir APT repository server. Accepts `.deb` package uploads via a REST API, 
 
 ## Features
 
-- **REST API** for uploading, listing, and deleting packages
+- **REST API** for uploading, listing, and deleting packages (single and bulk)
+- **Bulk upload** — upload a `.tar.gz` or `.zip` of `.deb` files with atomic validation (all-or-nothing)
 - **OpenPGP signing** with pure-Erlang RSA key generation and v4 packet encoding (no GPG binary required)
 - **Debian-compliant indices** — generates `Packages`, `Packages.gz`, `Release`, `Release.gpg`, and `InRelease`
 - **Acquire-By-Hash** support for atomic client-side updates
@@ -151,6 +152,59 @@ curl -X PUT \
   --data-binary @mypackage_1.0-1_amd64.deb \
   http://localhost:4080/api/packages/bookworm/main
 ```
+
+### Bulk upload packages
+
+Upload multiple `.deb` files at once by wrapping them in a `.tar.gz` or `.zip` archive. All packages are validated before any are added — if any `.deb` is invalid, the entire upload is rejected and the repository is unchanged.
+
+```sh
+# Create an archive of .deb files
+tar czf packages.tar.gz *.deb
+
+# Upload the archive
+curl -X PUT \
+  --data-binary @packages.tar.gz \
+  http://localhost:4080/api/packages/bookworm/main/bulk
+```
+
+Works with `.zip` archives too:
+
+```sh
+zip packages.zip *.deb
+curl -X PUT \
+  --data-binary @packages.zip \
+  http://localhost:4080/api/packages/bookworm/main/bulk
+```
+
+Response (201):
+
+```json
+{
+  "count": 3,
+  "packages": [
+    {
+      "package": "mypackage",
+      "version": "1.0-1",
+      "architecture": "amd64",
+      "filename": "pool/main/m/mypackage/mypackage_1.0-1_amd64.deb",
+      "sha256": "abcdef1234567890..."
+    }
+  ]
+}
+```
+
+If any package fails validation, the response is 400 with details about which files failed:
+
+```json
+{
+  "error": "Some packages failed validation",
+  "failures": [
+    {"file": "broken.deb", "reason": "invalid_magic"}
+  ]
+}
+```
+
+The archive is subject to the same `max_upload_size` limit as single uploads. Non-`.deb` files in the archive are ignored. The repository index is rebuilt only once after all packages are added.
 
 ### List packages
 
@@ -324,6 +378,7 @@ lib/repomatic_apt/
   application.ex        # OTP supervisor (MetadataStore, Repo, Bandit)
   config.ex             # Configuration accessors
   metadata_store.ex     # In-memory package metadata (Agent)
+  archive.ex            # Archive extraction (.tar.gz, .zip) for bulk uploads
   repo.ex               # Serialized repo operations (GenServer)
   store.ex              # File storage, pool layout, atomic writes, by-hash
   version.ex            # Debian version parsing and comparison
@@ -343,7 +398,7 @@ lib/repomatic_apt/
     crc24.ex            # CRC-24 checksum
   web/
     router.ex           # Main Plug router
-    api.ex              # REST API (upload, delete, list)
+    api.ex              # REST API (upload, bulk upload, delete, list)
     serve.ex            # Static file serving
     ui.ex               # HTML web interface
 ```

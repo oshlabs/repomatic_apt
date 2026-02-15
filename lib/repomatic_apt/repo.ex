@@ -27,6 +27,18 @@ defmodule RepomaticApt.Repo do
     GenServer.call(__MODULE__, {:add_package, distribution, component, deb_binary}, 30_000)
   end
 
+  @spec add_packages_bulk(String.t(), String.t(), [{String.t(), binary()}]) ::
+          {:ok, [Package.t()]} | {:error, [{String.t(), term()}]}
+  def add_packages_bulk(distribution, component, deb_entries) do
+    timeout = min(30_000 + length(deb_entries) * 10_000, 300_000)
+
+    GenServer.call(
+      __MODULE__,
+      {:add_packages_bulk, distribution, component, deb_entries},
+      timeout
+    )
+  end
+
   @spec remove_package(String.t(), String.t(), String.t(), String.t(), String.t()) :: :ok
   def remove_package(distribution, component, name, version, arch) do
     GenServer.call(__MODULE__, {:remove_package, distribution, component, name, version, arch})
@@ -72,6 +84,50 @@ defmodule RepomaticApt.Repo do
       {:error, reason} = err ->
         Logger.warning("Failed to extract package: #{inspect(reason)}")
         {:reply, err, state}
+    end
+  end
+
+  def handle_call({:add_packages_bulk, distribution, component, deb_entries}, _from, state) do
+    # Phase 1: validate all
+    results =
+      Enum.map(deb_entries, fn {filename, binary} ->
+        case Package.extract(binary) do
+          {:ok, pkg} -> {:ok, filename, binary, pkg}
+          {:error, reason} -> {:error, filename, reason}
+        end
+      end)
+
+    failures =
+      Enum.flat_map(results, fn
+        {:error, filename, reason} -> [{filename, reason}]
+        _ -> []
+      end)
+
+    if failures != [] do
+      {:reply, {:error, failures}, state}
+    else
+      # Phase 2: commit all
+      backend = Config.backend()
+
+      packages =
+        Enum.map(results, fn {:ok, _filename, binary, pkg} ->
+          filename = Store.deb_filename(pkg.name, pkg.version, pkg.architecture)
+          pool_path = Store.pool_path(component, pkg.name, filename)
+          Store.write_file(backend, pool_path, binary)
+
+          pkg = %{pkg | filename: pool_path}
+          MetadataStore.put(distribution, component, pkg)
+
+          Logger.info(
+            "Package added (bulk): #{pkg.name} #{pkg.version} #{pkg.architecture} to #{distribution}/#{component}"
+          )
+
+          pkg
+        end)
+
+      rebuild_indices(distribution)
+
+      {:reply, {:ok, packages}, state}
     end
   end
 
