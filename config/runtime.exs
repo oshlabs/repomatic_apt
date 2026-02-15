@@ -21,6 +21,10 @@ if config_env() == :prod do
     config :repomatic_apt, api_token: token
   end
 
+  if ro_token = System.get_env("REPOMATIC_RO_TOKEN") do
+    config :repomatic_apt, ro_token: ro_token
+  end
+
   if max_upload = System.get_env("REPOMATIC_MAX_UPLOAD_SIZE") do
     config :repomatic_apt, max_upload_size: String.to_integer(max_upload)
   end

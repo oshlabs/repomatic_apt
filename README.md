@@ -107,6 +107,7 @@ The server starts on port 4080 by default. Visit `http://localhost:4080/ui` for 
 | `signing_key` | `%RepomaticApt.Gpg.Key{}` | `nil` | Signing key struct (nil disables signing) |
 | `signing_key_uid` | `String` | `nil` | UID for auto-generated signing key |
 | `api_token` | `String` | `nil` | Bearer token for API auth (nil disables auth) |
+| `ro_token` | `String` | `nil` | Read-only token for repo access via HTTP Basic auth (nil means open) |
 | `max_upload_size` | `integer` | `104_857_600` | Maximum upload size in bytes (100 MB) |
 | `certfile` | `String` | `nil` | Path to PEM certificate file (enables TLS when both cert and key are set) |
 | `keyfile` | `String` | `nil` | Path to PEM private key file (enables TLS when both cert and key are set) |
@@ -177,12 +178,36 @@ deb http://repo:4080 bookworm systems voice
 
 ## Authentication
 
-RepomaticApt has optional Bearer token authentication for write operations (upload, delete) via the REST API. Reading the repository (package indices, `.deb` downloads, public key) is always open and unauthenticated.
+RepomaticApt supports two independent authentication mechanisms:
+
+### API authentication (`api_token`)
 
 - **`api_token` set** — all `/api/*` endpoints require an `Authorization: Bearer <token>` header. Requests without a valid token receive a `401 Unauthorized` response.
 - **`api_token` nil (default)** — all `/api/*` endpoints are open, no authentication required.
 
-Read paths (`/dists/*`, `/pool/*`, `/key.gpg`) and the web UI (`/ui/*`) are always publicly accessible regardless of the `api_token` setting. This means any APT client can fetch packages without credentials.
+### Read-only authentication (`ro_token`)
+
+- **`ro_token` set** — read paths (`/dists/*`, `/pool/*`, `/key.gpg`) and the web UI (`/ui/*`) require HTTP Basic auth where the password matches `ro_token` (username is ignored). APT natively supports this via `/etc/apt/auth.conf`.
+- **`ro_token` nil (default)** — all read paths are publicly accessible, any APT client can fetch packages without credentials.
+
+The `/healthz` endpoint is always open regardless of either token setting. The two tokens are independent — `api_token` controls API write access, `ro_token` controls repository read access.
+
+#### Configuring APT clients for `ro_token`
+
+When `ro_token` is set, APT clients need credentials in `/etc/apt/auth.conf.d/`:
+
+```sh
+# Create auth config
+echo "machine your-server login apt password your-ro-token" \
+  | sudo tee /etc/apt/auth.conf.d/repomatic.conf
+sudo chmod 600 /etc/apt/auth.conf.d/repomatic.conf
+
+# Import signing key (with auth)
+curl -fsSL -u apt:your-ro-token http://your-server:4080/key.gpg \
+  | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg
+```
+
+The sources.list line remains the same — APT picks up credentials from auth.conf automatically.
 
 ## REST API
 

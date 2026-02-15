@@ -31,6 +31,7 @@ defmodule RepomaticApt.Web.OperationalTest do
 
     on_exit(fn ->
       Application.put_env(:repomatic_apt, :api_token, nil)
+      Application.put_env(:repomatic_apt, :ro_token, nil)
       Application.put_env(:repomatic_apt, :max_upload_size, 100 * 1024 * 1024)
       File.rm_rf!(tmp)
     end)
@@ -93,6 +94,84 @@ defmodule RepomaticApt.Web.OperationalTest do
       |> call()
 
     assert conn.status == 401
+  end
+
+  # Read-only token (ro_token)
+
+  test "read paths open when ro_token is nil" do
+    Application.put_env(:repomatic_apt, :ro_token, nil)
+
+    for path <- ["/dists/stable/Release", "/pool/main/test", "/key.gpg", "/ui"] do
+      conn = Plug.Test.conn(:get, path) |> call()
+      assert conn.status != 401, "Expected #{path} to not return 401, got #{conn.status}"
+    end
+  end
+
+  test "/dists returns 401 when ro_token set and no auth" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+    conn = Plug.Test.conn(:get, "/dists/stable/Release") |> call()
+    assert conn.status == 401
+    assert Plug.Conn.get_resp_header(conn, "www-authenticate") == [~s(Basic realm="RepomaticApt")]
+  end
+
+  test "/pool returns 401 when ro_token set and no auth" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+    conn = Plug.Test.conn(:get, "/pool/main/test") |> call()
+    assert conn.status == 401
+  end
+
+  test "/key.gpg returns 401 when ro_token set and no auth" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+    conn = Plug.Test.conn(:get, "/key.gpg") |> call()
+    assert conn.status == 401
+  end
+
+  test "/ui returns 401 when ro_token set and no auth" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+    conn = Plug.Test.conn(:get, "/ui") |> call()
+    assert conn.status == 401
+  end
+
+  test "read paths succeed with correct Basic auth password" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    for path <- ["/dists/stable/Release", "/key.gpg", "/ui"] do
+      conn =
+        Plug.Test.conn(:get, path)
+        |> Plug.Conn.put_req_header("authorization", basic_auth("anything", "readpass"))
+        |> call()
+
+      assert conn.status != 401, "Expected #{path} to not return 401 with correct auth"
+    end
+  end
+
+  test "read paths return 401 with wrong Basic auth password" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    conn =
+      Plug.Test.conn(:get, "/ui")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "wrong"))
+      |> call()
+
+    assert conn.status == 401
+  end
+
+  test "/healthz always open regardless of ro_token" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+    conn = Plug.Test.conn(:get, "/healthz") |> call()
+    assert conn.status == 200
+  end
+
+  test "/api unaffected by ro_token" do
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+    Application.put_env(:repomatic_apt, :api_token, nil)
+
+    conn = Plug.Test.conn(:get, "/api/stable/main") |> call()
+    assert conn.status == 200
+  end
+
+  defp basic_auth(user, pass) do
+    "Basic " <> Base.encode64("#{user}:#{pass}")
   end
 
   # Upload size limit

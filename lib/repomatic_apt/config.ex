@@ -49,6 +49,10 @@ defmodule RepomaticApt.Config do
   @spec api_token() :: String.t() | nil
   def api_token, do: get(:api_token)
 
+  @doc "Read-only token for repository access. nil means read paths are open."
+  @spec ro_token() :: String.t() | nil
+  def ro_token, do: get(:ro_token)
+
   @doc "Returns the storage backend as a `{module, state}` tuple."
   @spec backend() :: {module(), term()}
   def backend do

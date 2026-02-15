@@ -40,15 +40,38 @@ defmodule RepomaticApt.Web.Ui do
   get "/setup" do
     host = conn.host || "localhost"
     port = Config.port()
-    base_url = "http://#{host}:#{port}"
+
+    scheme =
+      if Application.get_env(:repomatic_apt, :certfile), do: "https", else: "http"
+
+    base_url = "#{scheme}://#{host}:#{port}"
+    ro_token = Config.ro_token()
+
+    auth_step =
+      if ro_token do
+        """
+        <h3>1. Configure APT authentication</h3>
+        <pre><code>echo "machine #{host} login apt password #{escape(ro_token)}" | sudo tee /etc/apt/auth.conf.d/repomatic.conf
+        sudo chmod 600 /etc/apt/auth.conf.d/repomatic.conf</code></pre>
+        <h3>2. Import the signing key</h3>
+        <pre><code>curl -fsSL -u apt:#{escape(ro_token)} #{base_url}/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg</code></pre>
+        """
+      else
+        """
+        <h3>1. Import the signing key</h3>
+        <pre><code>curl -fsSL #{base_url}/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg</code></pre>
+        """
+      end
+
+    next_step = if ro_token, do: "3", else: "2"
+    update_step = if ro_token, do: "4", else: "3"
 
     html(conn, "Setup Instructions", """
     <h2>Setup Instructions</h2>
-    <h3>1. Import the signing key</h3>
-    <pre><code>curl -fsSL #{base_url}/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg</code></pre>
-    <h3>2. Add the repository</h3>
+    #{auth_step}
+    <h3>#{next_step}. Add the repository</h3>
     <pre><code>echo "deb [signed-by=/usr/share/keyrings/repomatic_apt.gpg] #{base_url} stable main" | sudo tee /etc/apt/sources.list.d/repomatic_apt.list</code></pre>
-    <h3>3. Update package lists</h3>
+    <h3>#{update_step}. Update package lists</h3>
     <pre><code>sudo apt update</code></pre>
     <p><a href="/ui">&larr; Back</a></p>
     """)

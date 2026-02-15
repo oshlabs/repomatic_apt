@@ -119,4 +119,67 @@ defmodule RepomaticApt.Integration.DockerTest do
       File.rm(key_path)
     end
   end
+
+  test "apt-get installs package with ro_token authentication", %{port: port} do
+    ro_token = "test-read-token-#{System.unique_integer([:positive])}"
+    Config.put(:ro_token, ro_token)
+
+    file_content = "hello from authenticated repomatic\n"
+
+    deb =
+      DebHelper.build_installable_deb("repomatic-auth-test", "1.0-1", "amd64", [
+        {"./usr/share/repomatic-auth-test/hello.txt", file_content}
+      ])
+
+    {:ok, _pkg} = Repo.add_package("stable", "main", deb)
+
+    pubkey = Repo.get_public_key()
+
+    key_path =
+      Path.join(
+        System.tmp_dir!(),
+        "repomatic_docker_auth_test_#{System.unique_integer([:positive])}.asc"
+      )
+
+    File.write!(key_path, pubkey)
+
+    try do
+      {output, exit_code} =
+        System.cmd(
+          "docker",
+          [
+            "run",
+            "--rm",
+            "--network",
+            "host",
+            "-v",
+            "#{key_path}:/etc/apt/keyrings/repomatic.asc:ro",
+            "debian:trixie",
+            "bash",
+            "-c",
+            """
+            set -e
+            mkdir -p /etc/apt/auth.conf.d
+            echo 'machine localhost login apt password #{ro_token}' \
+              > /etc/apt/auth.conf.d/repomatic.conf
+            chmod 600 /etc/apt/auth.conf.d/repomatic.conf
+            echo 'deb [signed-by=/etc/apt/keyrings/repomatic.asc] http://localhost:#{port} stable main' \
+              > /etc/apt/sources.list.d/repomatic.list
+            apt-get update -o Acquire::AllowInsecureRepositories=false
+            apt-get install -y repomatic-auth-test
+            cat /usr/share/repomatic-auth-test/hello.txt
+            """
+          ],
+          stderr_to_stdout: true
+        )
+
+      assert exit_code == 0,
+             "Docker apt-get install with ro_token failed (exit #{exit_code}):\n#{output}"
+
+      assert output =~ "hello from authenticated repomatic"
+    after
+      Config.put(:ro_token, nil)
+      File.rm(key_path)
+    end
+  end
 end
