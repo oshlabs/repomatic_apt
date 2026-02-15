@@ -11,7 +11,9 @@ An Elixir APT repository server. Accepts `.deb` package uploads via a REST API, 
 - **Acquire-By-Hash** support for atomic client-side updates
 - **Web UI** for browsing distributions, packages, and setup instructions
 - **Embeddable** — runs standalone with Bandit or mounts as a Plug inside a Phoenix app
+- **Pluggable storage backends** — local filesystem (default) or in-memory; implement the `Store.Backend` behaviour for custom backends
 - **Zero external dependencies** for crypto — uses Erlang's `:crypto` and `:zlib` modules
+- **No external dependencies** beyond Plug, Bandit, and Jason — everything else is built-in
 - **Atomic index writes** — temp file + rename to prevent partial reads
 - **Optional API authentication** via bearer token
 - **Configurable upload size limits**
@@ -388,6 +390,7 @@ lib/repomatic_apt/
   config.ex             # Configuration accessors
   metadata_store.ex     # In-memory package metadata (Agent)
   archive.ex            # Archive extraction (.tar.gz, .zip) for bulk uploads
+  tar.ex                # Low-level POSIX/ustar tar archive builder
   repo.ex               # Serialized repo operations (GenServer)
   store.ex              # File storage, pool layout, atomic writes, by-hash
   version.ex            # Debian version parsing and comparison
@@ -405,10 +408,15 @@ lib/repomatic_apt/
     packet.ex           # MPI encoding, packet framing
     armor.ex            # ASCII armor encoding
     crc24.ex            # CRC-24 checksum
+  store/
+    backend.ex          # Pluggable storage backend behaviour
+    backend/
+      local.ex          # Filesystem backend (atomic writes via temp+rename)
+      memory.ex         # In-memory backend (for testing/embedding)
   web/
     router.ex           # Main Plug router
     api.ex              # REST API (upload, bulk upload, delete, list)
-    serve.ex            # Static file serving
+    serve.ex            # Static file serving with path traversal protection
     ui.ex               # HTML web interface
 ```
 
@@ -418,6 +426,7 @@ lib/repomatic_apt/
 - **Serialized writes**: The `Repo` GenServer serializes all add/remove operations to prevent concurrent index corruption.
 - **Pure-Elixir OpenPGP**: Signing uses Erlang's `:crypto` module directly. No GPG binary needed at runtime.
 - **Atomic writes**: Index files are written to a temp file then renamed, so clients never see partial content.
+- **Pluggable storage**: The `Store.Backend` behaviour allows swapping storage implementations. The local backend uses atomic temp-file + rename writes; the memory backend is useful for tests and ephemeral use.
 
 ## Web UI
 
