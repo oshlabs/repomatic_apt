@@ -22,7 +22,7 @@ The server will auto-generate a signing key on first start and persist it in the
 | `REPOMATIC_IP` | `0.0.0.0` | Bind address |
 | `REPOMATIC_API_TOKEN` | *(none — no auth)* | Bearer token for API auth |
 | `REPOMATIC_MAX_UPLOAD_SIZE` | `104857600` (100 MB) | Max upload bytes |
-| `REPOMATIC_DISTRIBUTIONS` | See config.exs | JSON array of distribution objects |
+| `REPOMATIC_DISTRIBUTIONS` | See dev.exs | JSON array of distribution objects |
 | `REPOMATIC_SIGNING_KEY_PATH` | *(none)* | Path to ETF key file |
 | `REPOMATIC_SIGNING_KEY_UID` | `RepomaticApt <repomatic_apt@localhost>` | UID for auto-generated key |
 | `REPOMATIC_TLS_CERTFILE` | *(none)* | Path to PEM certificate file |

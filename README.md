@@ -10,6 +10,7 @@ An Elixir APT repository server. Accepts `.deb` package uploads via a REST API, 
 - **Debian-compliant indices** — generates `Packages`, `Packages.gz`, `Release`, `Release.gpg`, and `InRelease`
 - **Acquire-By-Hash** support for atomic client-side updates
 - **Web UI** for browsing distributions, packages, and setup instructions
+- **TLS/SSL** — optional HTTPS with configurable certificate and key files
 - **Embeddable** — runs standalone with Bandit or mounts as a Plug inside a Phoenix app
 - **Pluggable storage backends** — local filesystem (default) or in-memory; implement the `Store.Backend` behaviour for custom backends
 - **Zero external dependencies** for crypto — uses Erlang's `:crypto` and `:zlib` modules
@@ -52,7 +53,7 @@ File.write!("public_key.asc", RepomaticApt.Gpg.Key.export_public(key))
 
 ### 3. Configure
 
-Edit `config/config.exs` (or use environment-specific config files):
+Edit `config/dev.exs` (or use environment-specific config files):
 
 ```elixir
 import Config
@@ -60,6 +61,14 @@ import Config
 config :repomatic_apt,
   repo_root: "/var/lib/repomatic_apt/repo",
   port: 4080,
+  ip: {0, 0, 0, 0},
+  start_server: false,
+  api_token: nil,
+  max_upload_size: 104_857_600,
+  signing_key: nil,
+  signing_key_uid: nil,
+  # certfile: "/path/to/cert.pem",
+  # keyfile: "/path/to/key.pem",
   distributions: [
     %{
       suite: "bookworm",
@@ -70,16 +79,6 @@ config :repomatic_apt,
       label: "My Repository"
     }
   ]
-```
-
-To load the signing key at startup, add to `config/runtime.exs`:
-
-```elixir
-import Config
-
-if File.exists?("signing_key.asc") do
-  # For now, generate and persist the key; loading from file is a future feature
-end
 ```
 
 Or set the key programmatically before the app starts:
@@ -102,12 +101,16 @@ The server starts on port 4080 by default. Visit `http://localhost:4080/ui` for 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `repo_root` | `String` | `"/var/lib/repomatic_apt/repo"` | Directory where repository files are stored |
-| `port` | `integer` | `4080` | HTTP server port |
+| `port` | `integer` | `4080` | HTTP/HTTPS server port |
+| `ip` | `tuple` | `{0, 0, 0, 0}` | Bind address |
 | `distributions` | `[map]` | `[%{suite: "stable", ...}]` | List of distribution configurations |
 | `signing_key` | `%RepomaticApt.Gpg.Key{}` | `nil` | Signing key struct (nil disables signing) |
+| `signing_key_uid` | `String` | `nil` | UID for auto-generated signing key |
 | `api_token` | `String` | `nil` | Bearer token for API auth (nil disables auth) |
 | `max_upload_size` | `integer` | `104_857_600` | Maximum upload size in bytes (100 MB) |
-| `start_server` | `boolean` | `true` | Whether to start the built-in HTTP server |
+| `certfile` | `String` | `nil` | Path to PEM certificate file (enables TLS when both cert and key are set) |
+| `keyfile` | `String` | `nil` | Path to PEM private key file (enables TLS when both cert and key are set) |
+| `start_server` | `boolean` | `false` | Whether to start the built-in HTTP server |
 
 ### Distribution configuration
 
@@ -307,7 +310,7 @@ end
 ### 2. Disable the built-in server
 
 ```elixir
-# config/config.exs
+# config/config.exs (or environment-specific config)
 config :repomatic_apt,
   start_server: false,
   repo_root: "/var/lib/myapp/repo",
