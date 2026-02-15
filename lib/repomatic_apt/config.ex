@@ -9,7 +9,7 @@ defmodule RepomaticApt.Config do
   use Agent
 
   alias RepomaticApt.Gpg.Key
-  alias RepomaticCommon.Store.Backend.Local
+  alias RepomaticApt.Store.Backend.Local
 
   @spec start_link(keyword()) :: Agent.on_start()
   def start_link(opts \\ []) do

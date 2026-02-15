@@ -2,7 +2,7 @@ defmodule RepomaticApt.StoreTest do
   use ExUnit.Case, async: true
 
   alias RepomaticApt.Store
-  alias RepomaticCommon.Store.Backend.Local
+  alias RepomaticApt.Store.Backend.Local
 
   doctest RepomaticApt.Store
 

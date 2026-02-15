@@ -68,7 +68,7 @@ defmodule RepomaticApt.Test.DebHelper do
   end
 
   defp make_data_tar_gz(files) do
-    :zlib.gzip(RepomaticCommon.Tar.build_data(files, end_marker: true))
+    :zlib.gzip(RepomaticApt.Tar.build_data(files, end_marker: true))
   end
 
   defp make_ar(members) do

@@ -24,7 +24,6 @@ defmodule RepomaticApt.MixProject do
 
   defp deps do
     [
-      {:repomatic_common, path: "../repomatic_common"},
       {:plug, "~> 1.16"},
       {:bandit, "~> 1.0"},
       {:jason, "~> 1.4"},

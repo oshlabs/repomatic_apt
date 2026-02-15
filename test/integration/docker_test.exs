@@ -6,7 +6,7 @@ defmodule RepomaticApt.Integration.DockerTest do
 
   alias RepomaticApt.{Config, MetadataStore, Repo}
   alias RepomaticApt.Test.DebHelper
-  alias RepomaticCommon.Store.Backend.Memory
+  alias RepomaticApt.Store.Backend.Memory
 
   setup do
     {_, exit_code} = System.cmd("docker", ["info"], stderr_to_stdout: true)

@@ -3,8 +3,6 @@ defmodule RepomaticApt.Web.Api do
 
   require Logger
 
-  import RepomaticCommon.Web.ApiHelpers, only: [read_full_body: 2, json: 3]
-
   plug(:match)
   plug(:authorize)
   plug(:dispatch)
@@ -112,6 +110,49 @@ defmodule RepomaticApt.Web.Api do
   end
 
   defp authorize(conn, _opts) do
-    RepomaticCommon.Web.ApiHelpers.authorize(conn, RepomaticApt.Config.api_token())
+    case RepomaticApt.Config.api_token() do
+      nil ->
+        conn
+
+      expected_token ->
+        case Plug.Conn.get_req_header(conn, "authorization") do
+          ["Bearer " <> token] when token == expected_token ->
+            conn
+
+          _ ->
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(401, Jason.encode!(%{error: "Unauthorized"}))
+            |> halt()
+        end
+    end
+  end
+
+  defp json(conn, status, data) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(status, Jason.encode!(data))
+  end
+
+  defp read_full_body(conn, max_size, acc \\ <<>>) do
+    case Plug.Conn.read_body(conn, length: 10_000_000) do
+      {:ok, body, conn} ->
+        total = acc <> body
+
+        if byte_size(total) > max_size do
+          {:error, :too_large}
+        else
+          {:ok, total, conn}
+        end
+
+      {:more, partial, conn} ->
+        total = acc <> partial
+
+        if byte_size(total) > max_size do
+          {:error, :too_large}
+        else
+          read_full_body(conn, max_size, total)
+        end
+    end
   end
 end
