@@ -160,7 +160,7 @@ defmodule RepomaticApt.Integration.DockerTest do
             """
             set -e
             mkdir -p /etc/apt/auth.conf.d
-            echo 'machine localhost login apt password #{ro_token}' \
+            echo 'machine http://localhost login apt password #{ro_token}' \
               > /etc/apt/auth.conf.d/repomatic.conf
             chmod 600 /etc/apt/auth.conf.d/repomatic.conf
             echo 'deb [signed-by=/etc/apt/keyrings/repomatic.asc] http://localhost:#{port} stable main' \

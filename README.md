@@ -198,7 +198,7 @@ When `ro_token` is set, APT clients need credentials in `/etc/apt/auth.conf.d/`:
 
 ```sh
 # Create auth config
-echo "machine your-server login apt password your-ro-token" \
+echo "machine http://your-server:4080 login apt password your-ro-token" \
   | sudo tee /etc/apt/auth.conf.d/repomatic.conf
 sudo chmod 600 /etc/apt/auth.conf.d/repomatic.conf
 

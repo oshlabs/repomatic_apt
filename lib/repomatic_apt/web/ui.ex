@@ -51,7 +51,7 @@ defmodule RepomaticApt.Web.Ui do
       if ro_token do
         """
         <h3>1. Configure APT authentication</h3>
-        <pre><code>echo "machine #{host} login apt password #{escape(ro_token)}" | sudo tee /etc/apt/auth.conf.d/repomatic.conf
+        <pre><code>echo "machine #{base_url} login apt password #{escape(ro_token)}" | sudo tee /etc/apt/auth.conf.d/repomatic.conf
         sudo chmod 600 /etc/apt/auth.conf.d/repomatic.conf</code></pre>
         <h3>2. Import the signing key</h3>
         <pre><code>curl -fsSL -u apt:#{escape(ro_token)} #{base_url}/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg</code></pre>
