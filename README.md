@@ -207,7 +207,7 @@ curl -fsSL -u apt:your-ro-token http://your-server:4080/key.gpg \
   | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg
 ```
 
-The sources.list line remains the same — APT picks up credentials from auth.conf automatically.
+The `machine` entry must include the protocol (`http://` or `https://`) — modern APT (Debian trixie / Ubuntu 25.04+) silently withholds credentials over plain HTTP otherwise. The sources.list line remains the same — APT picks up credentials from auth.conf automatically.
 
 ## REST API
 
