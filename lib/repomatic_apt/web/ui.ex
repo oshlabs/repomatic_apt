@@ -3,6 +3,10 @@ defmodule RepomaticApt.Web.Ui do
 
   alias RepomaticApt.{Archive, Config, Repo}
 
+  import RepomaticCommon.Web.UiHelpers, only: [escape: 1]
+
+  @app_name "RepomaticApt"
+
   plug(:parse_multipart)
   plug(:match)
   plug(:dispatch)
@@ -262,63 +266,14 @@ defmodule RepomaticApt.Web.Ui do
   end
 
   defp html(conn, title, body) do
-    page = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>#{title} - RepomaticApt</title>
-      <style>
-        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; color: #333; }
-        h1 a { color: inherit; text-decoration: none; }
-        table { border-collapse: collapse; width: 100%; margin: 1em 0; }
-        th, td { border: 1px solid #ddd; padding: 0.5em 0.75em; text-align: left; }
-        th { background: #f5f5f5; }
-        tr:hover { background: #fafafa; }
-        a { color: #0366d6; }
-        pre { background: #f5f5f5; padding: 1em; overflow-x: auto; border-radius: 4px; }
-        code { font-size: 0.9em; }
-      </style>
-    </head>
-    <body>
-      <h1><a href="/ui">RepomaticApt</a></h1>
-      #{body}
-    </body>
-    </html>
-    """
-
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(200, page)
-  end
-
-  defp parse_multipart(conn, _opts) do
-    opts =
-      Plug.Parsers.init(
-        parsers: [:multipart],
-        pass: ["*/*"],
-        length: Config.max_upload_size()
-      )
-
-    Plug.Parsers.call(conn, opts)
+    RepomaticCommon.Web.UiHelpers.render_page(conn, @app_name, title, body)
   end
 
   defp html_error(conn, message) do
-    html(conn, "Upload Error", """
-    <h2>Upload Error</h2>
-    #{message}
-    <p><a href="/ui/upload">&larr; Try again</a></p>
-    """)
+    RepomaticCommon.Web.UiHelpers.render_error(conn, @app_name, message)
   end
 
-  defp escape(nil), do: ""
-
-  defp escape(str) do
-    str
-    |> String.replace("&", "&amp;")
-    |> String.replace("<", "&lt;")
-    |> String.replace(">", "&gt;")
-    |> String.replace("\"", "&quot;")
+  defp parse_multipart(conn, _opts) do
+    RepomaticCommon.Web.UiHelpers.init_multipart(conn, Config.max_upload_size())
   end
 end
