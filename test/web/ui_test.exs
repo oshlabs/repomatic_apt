@@ -61,7 +61,7 @@ defmodule RepomaticApt.Web.UiTest do
   test "GET /ui/:dist/:comp/:arch shows package list" do
     deb = DebHelper.build_deb("ui-test", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
@@ -74,7 +74,7 @@ defmodule RepomaticApt.Web.UiTest do
   test "GET /ui/:dist/:comp/:arch/:name/:version shows package detail" do
     deb = DebHelper.build_deb("detail-test", "2.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
@@ -154,7 +154,7 @@ defmodule RepomaticApt.Web.UiTest do
         {"Description", "safe"}
       ])
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 

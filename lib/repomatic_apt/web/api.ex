@@ -7,7 +7,7 @@ defmodule RepomaticApt.Web.Api do
   plug(:authorize)
   plug(:dispatch)
 
-  put "/packages/:distribution/:component/bulk" do
+  put "/:distribution/:component/bulk" do
     max_size = RepomaticApt.Config.max_upload_size()
 
     case read_full_body(conn, max_size) do
@@ -61,7 +61,7 @@ defmodule RepomaticApt.Web.Api do
     end
   end
 
-  put "/packages/:distribution/:component" do
+  put "/:distribution/:component" do
     max_size = RepomaticApt.Config.max_upload_size()
 
     case read_full_body(conn, max_size) do
@@ -87,12 +87,12 @@ defmodule RepomaticApt.Web.Api do
     end
   end
 
-  delete "/packages/:distribution/:component/:name/:version/:arch" do
+  delete "/:distribution/:component/:name/:version/:arch" do
     :ok = RepomaticApt.Repo.remove_package(distribution, component, name, version, arch)
     json(conn, 200, %{deleted: true})
   end
 
-  get "/packages/:distribution/:component" do
+  get "/:distribution/:component" do
     conn = Plug.Conn.fetch_query_params(conn)
     arch = conn.query_params["arch"]
     packages = RepomaticApt.Repo.list_packages(distribution, component, arch)

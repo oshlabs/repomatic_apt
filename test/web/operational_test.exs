@@ -56,7 +56,7 @@ defmodule RepomaticApt.Web.OperationalTest do
     Application.put_env(:repomatic_apt, :api_token, nil)
 
     conn =
-      Plug.Test.conn(:get, "/api/packages/stable/main")
+      Plug.Test.conn(:get, "/api/stable/main")
       |> call()
 
     assert conn.status == 200
@@ -66,7 +66,7 @@ defmodule RepomaticApt.Web.OperationalTest do
     Application.put_env(:repomatic_apt, :api_token, "secret123")
 
     conn =
-      Plug.Test.conn(:get, "/api/packages/stable/main")
+      Plug.Test.conn(:get, "/api/stable/main")
       |> call()
 
     assert conn.status == 401
@@ -77,7 +77,7 @@ defmodule RepomaticApt.Web.OperationalTest do
     Application.put_env(:repomatic_apt, :api_token, "secret123")
 
     conn =
-      Plug.Test.conn(:get, "/api/packages/stable/main")
+      Plug.Test.conn(:get, "/api/stable/main")
       |> Plug.Conn.put_req_header("authorization", "Bearer secret123")
       |> call()
 
@@ -88,7 +88,7 @@ defmodule RepomaticApt.Web.OperationalTest do
     Application.put_env(:repomatic_apt, :api_token, "secret123")
 
     conn =
-      Plug.Test.conn(:get, "/api/packages/stable/main")
+      Plug.Test.conn(:get, "/api/stable/main")
       |> Plug.Conn.put_req_header("authorization", "Bearer wrong")
       |> call()
 
@@ -102,7 +102,7 @@ defmodule RepomaticApt.Web.OperationalTest do
     deb = DebHelper.build_deb("small", "1.0", "amd64")
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+      Plug.Test.conn(:put, "/api/stable/main", deb)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -114,7 +114,7 @@ defmodule RepomaticApt.Web.OperationalTest do
     deb = DebHelper.build_deb("big", "1.0", "amd64")
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+      Plug.Test.conn(:put, "/api/stable/main", deb)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -127,7 +127,7 @@ defmodule RepomaticApt.Web.OperationalTest do
   test "index files are written atomically (no temp files left behind)", %{repo_root: root} do
     deb = DebHelper.build_deb("atomic-test", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
@@ -146,7 +146,7 @@ defmodule RepomaticApt.Web.OperationalTest do
   test "old by-hash entries are cleaned up after update", %{repo_root: root} do
     deb1 = DebHelper.build_deb("cleanup-test", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb1)
+    Plug.Test.conn(:put, "/api/stable/main", deb1)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
@@ -156,7 +156,7 @@ defmodule RepomaticApt.Web.OperationalTest do
     # Upload a different package to change the Packages file content
     deb2 = DebHelper.build_deb("cleanup-test2", "2.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb2)
+    Plug.Test.conn(:put, "/api/stable/main", deb2)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 

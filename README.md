@@ -136,7 +136,7 @@ Read paths (`/dists/*`, `/pool/*`, `/key.gpg`) and the web UI (`/ui/*`) are alwa
 ```sh
 curl -X PUT \
   --data-binary @mypackage_1.0-1_amd64.deb \
-  http://localhost:4080/api/packages/bookworm/main
+  http://localhost:4080/api/bookworm/main
 ```
 
 Response (201):
@@ -159,7 +159,7 @@ When `api_token` is configured:
 curl -X PUT \
   -H "Authorization: Bearer your-secret-token" \
   --data-binary @mypackage_1.0-1_amd64.deb \
-  http://localhost:4080/api/packages/bookworm/main
+  http://localhost:4080/api/bookworm/main
 ```
 
 ### Bulk upload packages
@@ -173,7 +173,7 @@ tar czf packages.tar.gz *.deb
 # Upload the archive
 curl -X PUT \
   --data-binary @packages.tar.gz \
-  http://localhost:4080/api/packages/bookworm/main/bulk
+  http://localhost:4080/api/bookworm/main/bulk
 ```
 
 Works with `.zip` archives too:
@@ -182,7 +182,7 @@ Works with `.zip` archives too:
 zip packages.zip *.deb
 curl -X PUT \
   --data-binary @packages.zip \
-  http://localhost:4080/api/packages/bookworm/main/bulk
+  http://localhost:4080/api/bookworm/main/bulk
 ```
 
 Response (201):
@@ -219,10 +219,10 @@ The archive is subject to the same `max_upload_size` limit as single uploads. No
 
 ```sh
 # All packages in a component
-curl http://localhost:4080/api/packages/bookworm/main
+curl http://localhost:4080/api/bookworm/main
 
 # Filter by architecture
-curl http://localhost:4080/api/packages/bookworm/main?arch=amd64
+curl http://localhost:4080/api/bookworm/main?arch=amd64
 ```
 
 Response (200):
@@ -239,7 +239,7 @@ Response (200):
 
 ```sh
 curl -X DELETE \
-  http://localhost:4080/api/packages/bookworm/main/mypackage/1.0-1/amd64
+  http://localhost:4080/api/bookworm/main/mypackage/1.0-1/amd64
 ```
 
 Response (200):
@@ -334,7 +334,7 @@ defmodule MyAppWeb.Router do
 end
 ```
 
-This mounts RepomaticApt at `/repo`, so the API becomes `/repo/api/packages/...`, the web UI is at `/repo/ui`, and repository files are served from `/repo/dists/...` and `/repo/pool/...`.
+This mounts RepomaticApt at `/repo`, so the API becomes `/repo/api/...`, the web UI is at `/repo/ui`, and repository files are served from `/repo/dists/...` and `/repo/pool/...`.
 
 ### 4. Set the signing key at startup
 

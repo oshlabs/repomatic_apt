@@ -70,7 +70,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
       make_tar_gz([{"bulk-a_1.0_amd64.deb", deb1}, {"bulk-b_2.0_amd64.deb", deb2}])
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -95,7 +95,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
     archive = make_zip([{"zip-pkg_1.0_amd64.deb", deb}])
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -116,7 +116,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
       ])
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -136,7 +136,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
     archive = make_tar_gz([{"readme.txt", "hello"}, {"notes.md", "notes"}])
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -147,7 +147,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
 
   test "unsupported archive format returns 400" do
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", "not an archive format")
+      Plug.Test.conn(:put, "/api/stable/main/bulk", "not an archive format")
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -163,7 +163,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
     archive = make_tar_gz([{"big_1.0_amd64.deb", deb}])
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -179,7 +179,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
 
     # Without token
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -187,7 +187,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
 
     # With correct token
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> Plug.Conn.put_req_header("authorization", "Bearer secret123")
       |> call()
@@ -202,7 +202,7 @@ defmodule RepomaticApt.Web.BulkUploadTest do
     archive =
       make_tar_gz([{"idx-bulk-a_1.0_amd64.deb", deb1}, {"idx-bulk-b_2.0_amd64.deb", deb2}])
 
-    Plug.Test.conn(:put, "/api/packages/stable/main/bulk", archive)
+    Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 

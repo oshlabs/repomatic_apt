@@ -35,11 +35,11 @@ defmodule RepomaticApt.Web.RouterTest do
     RepomaticApt.Web.Router.call(conn, RepomaticApt.Web.Router.init([]))
   end
 
-  test "PUT /api/packages uploads a deb and returns JSON" do
+  test "PUT /api uploads a deb and returns JSON" do
     deb = DebHelper.build_deb("hello", "1.0-1", "amd64")
 
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+      Plug.Test.conn(:put, "/api/stable/main", deb)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -52,15 +52,15 @@ defmodule RepomaticApt.Web.RouterTest do
     assert body["filename"] =~ "pool/main/h/hello/"
   end
 
-  test "GET /api/packages lists packages" do
+  test "GET /api lists packages" do
     deb = DebHelper.build_deb("test-pkg", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
     conn =
-      Plug.Test.conn(:get, "/api/packages/stable/main?arch=amd64")
+      Plug.Test.conn(:get, "/api/stable/main?arch=amd64")
       |> call()
 
     assert conn.status == 200
@@ -69,22 +69,22 @@ defmodule RepomaticApt.Web.RouterTest do
     assert hd(body["packages"])["name"] == "test-pkg"
   end
 
-  test "DELETE /api/packages removes a package" do
+  test "DELETE /api removes a package" do
     deb = DebHelper.build_deb("removeme", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
     conn =
-      Plug.Test.conn(:delete, "/api/packages/stable/main/removeme/1.0/amd64")
+      Plug.Test.conn(:delete, "/api/stable/main/removeme/1.0/amd64")
       |> call()
 
     assert conn.status == 200
     assert Jason.decode!(conn.resp_body)["deleted"] == true
 
     conn =
-      Plug.Test.conn(:get, "/api/packages/stable/main?arch=amd64")
+      Plug.Test.conn(:get, "/api/stable/main?arch=amd64")
       |> call()
 
     assert Jason.decode!(conn.resp_body)["packages"] == []
@@ -94,7 +94,7 @@ defmodule RepomaticApt.Web.RouterTest do
     # Upload a package to trigger index generation
     deb = DebHelper.build_deb("idx-test", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
@@ -106,7 +106,7 @@ defmodule RepomaticApt.Web.RouterTest do
   test "GET /dists/stable/InRelease serves signed release", %{repo_root: _root} do
     deb = DebHelper.build_deb("sig-test", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
@@ -118,7 +118,7 @@ defmodule RepomaticApt.Web.RouterTest do
   test "GET /dists/stable/main/binary-amd64/Packages.gz serves compressed index" do
     deb = DebHelper.build_deb("gz-test", "1.0", "amd64")
 
-    Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+    Plug.Test.conn(:put, "/api/stable/main", deb)
     |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
     |> call()
 
@@ -141,7 +141,7 @@ defmodule RepomaticApt.Web.RouterTest do
     deb = DebHelper.build_deb("pool-test", "1.0", "amd64")
 
     upload_conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main", deb)
+      Plug.Test.conn(:put, "/api/stable/main", deb)
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
@@ -158,7 +158,7 @@ defmodule RepomaticApt.Web.RouterTest do
 
   test "PUT invalid deb returns 400" do
     conn =
-      Plug.Test.conn(:put, "/api/packages/stable/main", "not a deb")
+      Plug.Test.conn(:put, "/api/stable/main", "not a deb")
       |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
       |> call()
 
