@@ -120,6 +120,15 @@ Each distribution map supports:
 | `origin` | `"My Repository"` | Origin field in Release file |
 | `label` | `"My Repository"` | Label field in Release file |
 
+## Authentication
+
+RepomaticApt has optional Bearer token authentication for write operations (upload, delete) via the REST API. Reading the repository (package indices, `.deb` downloads, public key) is always open and unauthenticated.
+
+- **`api_token` set** — all `/api/*` endpoints require an `Authorization: Bearer <token>` header. Requests without a valid token receive a `401 Unauthorized` response.
+- **`api_token` nil (default)** — all `/api/*` endpoints are open, no authentication required.
+
+Read paths (`/dists/*`, `/pool/*`, `/key.gpg`) and the web UI (`/ui/*`) are always publicly accessible regardless of the `api_token` setting. This means any APT client can fetch packages without credentials.
+
 ## REST API
 
 ### Upload a package
