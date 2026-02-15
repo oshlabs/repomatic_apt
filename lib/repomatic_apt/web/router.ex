@@ -34,6 +34,12 @@ defmodule RepomaticApt.Web.Router do
     end
   end
 
+  get "/" do
+    conn
+    |> put_resp_header("location", "/ui")
+    |> send_resp(302, "")
+  end
+
   match _ do
     send_resp(conn, 404, "Not found")
   end
