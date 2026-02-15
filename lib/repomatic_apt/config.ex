@@ -1,18 +1,33 @@
 defmodule RepomaticApt.Config do
   @moduledoc """
-  Configuration accessors for the RepomaticApt application.
+  Configuration for RepomaticApt.
+
+  Stores opts passed at startup in an Agent. Each accessor checks the
+  Agent state first, then falls back to `Application.get_env/3`.
   """
 
+  use Agent
+
   alias RepomaticApt.Gpg.Key
+  alias RepomaticCommon.Store.Backend.Local
+
+  @spec start_link(keyword()) :: Agent.on_start()
+  def start_link(opts \\ []) do
+    Agent.start_link(fn -> build_config(opts) end, name: __MODULE__)
+  end
+
+  defp build_config(opts) do
+    Map.new(opts)
+  end
 
   @spec repo_root() :: String.t()
-  def repo_root, do: Application.get_env(:repomatic_apt, :repo_root, "/var/lib/repomatic_apt/repo")
+  def repo_root, do: get(:repo_root, "/var/lib/repomatic_apt/repo")
 
   @spec port() :: non_neg_integer()
-  def port, do: Application.get_env(:repomatic_apt, :port, 4080)
+  def port, do: get(:port, 4080)
 
   @spec distributions() :: [map()]
-  def distributions, do: Application.get_env(:repomatic_apt, :distributions, [])
+  def distributions, do: get(:distributions, [])
 
   @spec find_distribution(String.t()) :: map()
   def find_distribution(name) do
@@ -21,13 +36,42 @@ defmodule RepomaticApt.Config do
   end
 
   @spec signing_key() :: Key.t() | nil
-  def signing_key, do: Application.get_env(:repomatic_apt, :signing_key)
+  def signing_key, do: get(:signing_key)
 
   @doc "Maximum upload size in bytes (default 100 MB)."
   @spec max_upload_size() :: non_neg_integer()
-  def max_upload_size, do: Application.get_env(:repomatic_apt, :max_upload_size, 100 * 1024 * 1024)
+  def max_upload_size, do: get(:max_upload_size, 100 * 1024 * 1024)
 
   @doc "API bearer token for authentication. nil means no auth required."
   @spec api_token() :: String.t() | nil
-  def api_token, do: Application.get_env(:repomatic_apt, :api_token)
+  def api_token, do: get(:api_token)
+
+  @doc "Returns the storage backend as a `{module, state}` tuple."
+  @spec backend() :: {module(), term()}
+  def backend do
+    Agent.get(__MODULE__, fn state ->
+      if Map.has_key?(state, :backend) do
+        Map.get(state, :backend)
+      else
+        root =
+          if Map.has_key?(state, :repo_root) do
+            Map.get(state, :repo_root)
+          else
+            Application.get_env(:repomatic_apt, :repo_root, "/var/lib/repomatic_apt/repo")
+          end
+
+        {Local, Local.new(root)}
+      end
+    end)
+  end
+
+  defp get(key, default \\ nil) do
+    Agent.get(__MODULE__, fn state ->
+      if Map.has_key?(state, key) do
+        Map.get(state, key)
+      else
+        Application.get_env(:repomatic_apt, key, default)
+      end
+    end)
+  end
 end

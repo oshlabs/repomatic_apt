@@ -8,7 +8,10 @@ defmodule RepomaticApt.Web.OperationalTest do
     MetadataStore.clear()
 
     tmp =
-      Path.join(System.tmp_dir!(), "repomatic_apt_ops_test_#{:erlang.unique_integer([:positive])}")
+      Path.join(
+        System.tmp_dir!(),
+        "repomatic_apt_ops_test_#{:erlang.unique_integer([:positive])}"
+      )
 
     File.mkdir_p!(tmp)
     Application.put_env(:repomatic_apt, :repo_root, tmp)

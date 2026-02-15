@@ -11,14 +11,28 @@ defmodule RepomaticApt.Web.Serve do
     if String.contains?(relative_path, "..") do
       send_resp(conn, 400, "Invalid path")
     else
-      full_path = Path.join(RepomaticApt.Config.repo_root(), relative_path)
+      {mod, state} = RepomaticApt.Config.backend()
 
-      if File.exists?(full_path) do
-        conn
-        |> put_resp_content_type(content_type(relative_path))
-        |> send_file(200, full_path)
+      if function_exported?(mod, :file_path, 2) do
+        local_path = mod.file_path(state, relative_path)
+
+        if File.exists?(local_path) do
+          conn
+          |> put_resp_content_type(content_type(relative_path))
+          |> send_file(200, local_path)
+        else
+          send_resp(conn, 404, "Not found")
+        end
       else
-        send_resp(conn, 404, "Not found")
+        case mod.get(state, relative_path) do
+          {:ok, data} ->
+            conn
+            |> put_resp_content_type(content_type(relative_path))
+            |> send_resp(200, data)
+
+          {:error, _} ->
+            send_resp(conn, 404, "Not found")
+        end
       end
     end
   end

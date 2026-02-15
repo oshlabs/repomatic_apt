@@ -53,9 +53,10 @@ defmodule RepomaticApt.Repo do
   def handle_call({:add_package, distribution, component, deb_binary}, _from, state) do
     case Package.extract(deb_binary) do
       {:ok, pkg} ->
+        backend = Config.backend()
         filename = Store.deb_filename(pkg.name, pkg.version, pkg.architecture)
         pool_path = Store.pool_path(component, pkg.name, filename)
-        Store.write_file(Config.repo_root(), pool_path, deb_binary)
+        Store.write_file(backend, pool_path, deb_binary)
 
         pkg = %{pkg | filename: pool_path}
         MetadataStore.put(distribution, component, pkg)
@@ -87,7 +88,7 @@ defmodule RepomaticApt.Repo do
     dist_config = Config.find_distribution(distribution)
     components = dist_config[:components] || ["main"]
     architectures = dist_config[:architectures] || ["amd64"]
-    repo_root = Config.repo_root()
+    backend = Config.backend()
 
     all_files =
       for component <- components, arch <- architectures do
@@ -96,15 +97,14 @@ defmodule RepomaticApt.Repo do
         gz_content = Compress.gzip(content)
 
         rel_dir = "dists/#{distribution}/#{component}/binary-#{arch}"
-        Store.write_with_by_hash(repo_root, Path.join(rel_dir, "Packages"), content)
-        Store.write_with_by_hash(repo_root, Path.join(rel_dir, "Packages.gz"), gz_content)
 
-        # Collect current hashes and clean up stale by-hash entries
-        current_hashes =
-          [content, gz_content]
-          |> Enum.map(&(:crypto.hash(:sha256, &1) |> Base.encode16(case: :lower)))
+        packages_hash =
+          Store.write_with_by_hash(backend, Path.join(rel_dir, "Packages"), content)
 
-        Store.cleanup_by_hash(repo_root, rel_dir, current_hashes)
+        gz_hash =
+          Store.write_with_by_hash(backend, Path.join(rel_dir, "Packages.gz"), gz_content)
+
+        Store.cleanup_by_hash(backend, rel_dir, [packages_hash, gz_hash])
 
         [
           {"#{component}/binary-#{arch}/Packages", content},
@@ -124,15 +124,15 @@ defmodule RepomaticApt.Repo do
         files: all_files
       )
 
-    Store.write_file_atomic(repo_root, "dists/#{distribution}/Release", release_content)
+    Store.write_file(backend, "dists/#{distribution}/Release", release_content)
 
     key = Config.signing_key()
 
     if key do
       release_gpg = Sign.detached(key, release_content)
       inrelease = Sign.clearsign(key, release_content)
-      Store.write_file_atomic(repo_root, "dists/#{distribution}/Release.gpg", release_gpg)
-      Store.write_file_atomic(repo_root, "dists/#{distribution}/InRelease", inrelease)
+      Store.write_file(backend, "dists/#{distribution}/Release.gpg", release_gpg)
+      Store.write_file(backend, "dists/#{distribution}/InRelease", inrelease)
       Logger.debug("Signed Release for #{distribution}")
     end
 

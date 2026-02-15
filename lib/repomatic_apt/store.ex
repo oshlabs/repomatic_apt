@@ -1,7 +1,14 @@
 defmodule RepomaticApt.Store do
   @moduledoc """
-  File storage with pool layout, by-hash support, and atomic writes.
+  File storage with pool layout, by-hash support, and pluggable backends.
+
+  Path utility functions (`pool_path/3`, `pool_prefix/1`, `deb_filename/3`)
+  are pure and take no backend argument.
+
+  I/O functions delegate to a `{module, state}` backend tuple.
   """
+
+  @type backend :: {module(), term()}
 
   @doc """
   Compute the pool path for a package.
@@ -37,62 +44,49 @@ defmodule RepomaticApt.Store do
   end
 
   @doc """
-  Store a file at the given path under repo_root, creating directories as needed.
+  Store a file at the given relative path via the backend.
   """
-  @spec write_file(String.t(), String.t(), iodata()) :: String.t()
-  def write_file(repo_root, relative_path, content) do
-    full_path = Path.join(repo_root, relative_path)
-    full_path |> Path.dirname() |> File.mkdir_p!()
-    File.write!(full_path, content)
-    full_path
+  @spec write_file(backend(), String.t(), iodata()) :: :ok
+  def write_file({mod, state}, relative_path, content) do
+    mod.put(state, relative_path, content)
   end
 
   @doc """
-  Atomically write a file by writing to a temp file then renaming.
+  Write a file and its by-hash copy via the backend.
+
+  Returns the SHA256 hex hash of the content.
   """
-  @spec write_file_atomic(String.t(), String.t(), iodata()) :: String.t()
-  def write_file_atomic(repo_root, relative_path, content) do
-    full_path = Path.join(repo_root, relative_path)
-    full_path |> Path.dirname() |> File.mkdir_p!()
-    tmp_path = full_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
-    File.write!(tmp_path, content)
-    File.rename!(tmp_path, full_path)
-    full_path
-  end
-
-  @doc """
-  Write a file atomically and also store it under by-hash.
-
-  Returns `{full_path, by_hash_path}`.
-  """
-  @spec write_with_by_hash(String.t(), String.t(), iodata()) :: {String.t(), String.t()}
-  def write_with_by_hash(repo_root, relative_path, content) do
-    full_path = write_file_atomic(repo_root, relative_path, content)
-
+  @spec write_with_by_hash(backend(), String.t(), iodata()) :: String.t()
+  def write_with_by_hash({mod, state} = _backend, relative_path, content) do
     hash = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
     dir = Path.dirname(relative_path)
     by_hash_relative = Path.join([dir, "by-hash", "SHA256", hash])
-    by_hash_full = write_file(repo_root, by_hash_relative, content)
 
-    {full_path, by_hash_full}
+    mod.put(state, relative_path, content)
+    mod.put(state, by_hash_relative, content)
+
+    hash
   end
 
   @doc """
   Clean up old by-hash entries, keeping only hashes present in `current_hashes`.
   """
-  @spec cleanup_by_hash(String.t(), String.t(), [String.t()]) :: :ok
-  def cleanup_by_hash(repo_root, by_hash_dir, current_hashes) do
-    full_dir = Path.join([repo_root, by_hash_dir, "by-hash", "SHA256"])
+  @spec cleanup_by_hash(backend(), String.t(), [String.t()]) :: :ok
+  def cleanup_by_hash({mod, state}, by_hash_dir, current_hashes) do
+    sha_dir = Path.join([by_hash_dir, "by-hash", "SHA256"])
 
-    if File.dir?(full_dir) do
-      current_set = MapSet.new(current_hashes)
+    case mod.list(state, sha_dir) do
+      {:ok, entries} ->
+        current_set = MapSet.new(current_hashes)
 
-      full_dir
-      |> File.ls!()
-      |> Enum.reject(&MapSet.member?(current_set, &1))
-      |> Enum.each(fn old_hash ->
-        File.rm(Path.join(full_dir, old_hash))
-      end)
+        entries
+        |> Enum.reject(&MapSet.member?(current_set, &1))
+        |> Enum.each(fn old_hash ->
+          mod.delete(state, Path.join(sha_dir, old_hash))
+        end)
+
+      {:error, _} ->
+        :ok
     end
 
     :ok

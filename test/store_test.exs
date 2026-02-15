@@ -2,6 +2,7 @@ defmodule RepomaticApt.StoreTest do
   use ExUnit.Case, async: true
 
   alias RepomaticApt.Store
+  alias RepomaticCommon.Store.Backend.Local
 
   doctest RepomaticApt.Store
 
@@ -38,28 +39,52 @@ defmodule RepomaticApt.StoreTest do
 
   describe "write_file/3" do
     @tag :tmp_dir
-    test "creates directories and writes file", %{tmp_dir: tmp} do
-      path = Store.write_file(tmp, "a/b/c.txt", "hello")
-      assert File.read!(path) == "hello"
-      assert path == Path.join(tmp, "a/b/c.txt")
+    test "creates directories and writes file via backend", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
+      assert :ok = Store.write_file(backend, "a/b/c.txt", "hello")
+      assert File.read!(Path.join(tmp, "a/b/c.txt")) == "hello"
     end
   end
 
   describe "write_with_by_hash/3" do
     @tag :tmp_dir
-    test "writes file and by-hash copy", %{tmp_dir: tmp} do
+    test "writes file and by-hash copy, returns hash", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
       content = "test content"
 
-      {path, by_hash_path} =
-        Store.write_with_by_hash(tmp, "dists/jammy/main/binary-amd64/Packages", content)
+      hash = Store.write_with_by_hash(backend, "dists/jammy/main/binary-amd64/Packages", content)
 
-      assert File.read!(path) == content
+      assert File.read!(Path.join(tmp, "dists/jammy/main/binary-amd64/Packages")) == content
+
+      expected_hash = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+      assert hash == expected_hash
+
+      by_hash_path =
+        Path.join(tmp, "dists/jammy/main/binary-amd64/by-hash/SHA256/#{hash}")
+
       assert File.read!(by_hash_path) == content
+    end
+  end
 
-      hash = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+  describe "cleanup_by_hash/3" do
+    @tag :tmp_dir
+    test "removes stale hashes and keeps current ones", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
 
-      assert by_hash_path ==
-               Path.join(tmp, "dists/jammy/main/binary-amd64/by-hash/SHA256/#{hash}")
+      # Write two files via by-hash
+      hash1 = Store.write_with_by_hash(backend, "dists/d/main/binary-amd64/Packages", "v1")
+      hash2 = Store.write_with_by_hash(backend, "dists/d/main/binary-amd64/Packages", "v2")
+
+      # Both by-hash entries exist
+      sha_dir = Path.join(tmp, "dists/d/main/binary-amd64/by-hash/SHA256")
+      assert File.exists?(Path.join(sha_dir, hash1))
+      assert File.exists?(Path.join(sha_dir, hash2))
+
+      # Cleanup keeping only hash2
+      Store.cleanup_by_hash(backend, "dists/d/main/binary-amd64", [hash2])
+
+      refute File.exists?(Path.join(sha_dir, hash1))
+      assert File.exists?(Path.join(sha_dir, hash2))
     end
   end
 end
