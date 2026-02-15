@@ -25,6 +25,70 @@ The server will auto-generate a signing key on first start and persist it in the
 | `REPOMATIC_DISTRIBUTIONS` | See config.exs | JSON array of distribution objects |
 | `REPOMATIC_SIGNING_KEY_PATH` | *(none)* | Path to ETF key file |
 | `REPOMATIC_SIGNING_KEY_UID` | `RepomaticApt <repomatic_apt@localhost>` | UID for auto-generated key |
+| `REPOMATIC_TLS_CERTFILE` | *(none)* | Path to PEM certificate file |
+| `REPOMATIC_TLS_KEYFILE` | *(none)* | Path to PEM private key file |
+
+## TLS/SSL
+
+To enable HTTPS, set both `REPOMATIC_TLS_CERTFILE` and `REPOMATIC_TLS_KEYFILE`. When both are set, the server starts with `scheme: :https`. When neither is set, plain HTTP is used (default).
+
+```bash
+docker run -d \
+  -p 4443:4443 \
+  -v /path/to/certs:/certs:ro \
+  -v repomatic_data:/var/lib/repomatic_apt/repo \
+  -e REPOMATIC_PORT=4443 \
+  -e REPOMATIC_TLS_CERTFILE=/certs/cert.pem \
+  -e REPOMATIC_TLS_KEYFILE=/certs/key.pem \
+  -e REPOMATIC_API_TOKEN=secret \
+  repomatic_apt
+```
+
+### Docker Compose with TLS
+
+```yaml
+services:
+  repomatic:
+    build: .
+    ports:
+      - "4443:4443"
+    volumes:
+      - repomatic_data:/var/lib/repomatic_apt/repo
+      - ./certs:/certs:ro
+    environment:
+      REPOMATIC_PORT: "4443"
+      REPOMATIC_TLS_CERTFILE: /certs/cert.pem
+      REPOMATIC_TLS_KEYFILE: /certs/key.pem
+      REPOMATIC_API_TOKEN: "${REPOMATIC_API_TOKEN}"
+    restart: unless-stopped
+
+volumes:
+  repomatic_data:
+```
+
+### Kubernetes
+
+In Kubernetes, TLS is typically terminated at the Ingress controller. However, if you need end-to-end encryption, mount the certificate and key via a Secret and set the environment variables:
+
+```yaml
+volumes:
+  - name: tls-certs
+    secret:
+      secretName: repomatic-tls
+containers:
+  - name: repomatic
+    volumeMounts:
+      - name: tls-certs
+        mountPath: /certs
+        readOnly: true
+    env:
+      - name: REPOMATIC_PORT
+        value: "4443"
+      - name: REPOMATIC_TLS_CERTFILE
+        value: /certs/tls.crt
+      - name: REPOMATIC_TLS_KEYFILE
+        value: /certs/tls.key
+```
 
 ## Signing Key Management
 

@@ -50,7 +50,31 @@ defmodule RepomaticApt do
         Keyword.get(opts, :ip) ||
           Application.get_env(:repomatic_apt, :ip, {0, 0, 0, 0})
 
-      [{Bandit, plug: RepomaticApt.Web.Router, port: port, ip: ip}]
+      bandit_opts = [plug: RepomaticApt.Web.Router, port: port, ip: ip]
+
+      bandit_opts =
+        case tls_opts(opts) do
+          [] -> bandit_opts
+          tls -> [{:scheme, :https} | tls] ++ bandit_opts
+        end
+
+      [{Bandit, bandit_opts}]
+    else
+      []
+    end
+  end
+
+  defp tls_opts(opts) do
+    certfile =
+      Keyword.get(opts, :certfile) ||
+        Application.get_env(:repomatic_apt, :certfile)
+
+    keyfile =
+      Keyword.get(opts, :keyfile) ||
+        Application.get_env(:repomatic_apt, :keyfile)
+
+    if certfile && keyfile do
+      [certfile: certfile, keyfile: keyfile]
     else
       []
     end

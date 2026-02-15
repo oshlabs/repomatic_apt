@@ -44,4 +44,11 @@ if config_env() == :prod do
   if uid = System.get_env("REPOMATIC_SIGNING_KEY_UID") do
     config :repomatic_apt, signing_key_uid: uid
   end
+
+  tls_certfile = System.get_env("REPOMATIC_TLS_CERTFILE")
+  tls_keyfile = System.get_env("REPOMATIC_TLS_KEYFILE")
+
+  if tls_certfile && tls_keyfile do
+    config :repomatic_apt, certfile: tls_certfile, keyfile: tls_keyfile
+  end
 end
