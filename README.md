@@ -59,8 +59,8 @@ config :repomatic_apt,
   port: 4080,
   distributions: [
     %{
-      suite: "jammy",
-      codename: "jammy",
+      suite: "bookworm",
+      codename: "bookworm",
       architectures: ["amd64", "arm64"],
       components: ["main"],
       origin: "My Repository",
@@ -112,8 +112,8 @@ Each distribution map supports:
 
 | Key | Example | Description |
 |-----|---------|-------------|
-| `suite` | `"jammy"` | Suite name used in APT sources |
-| `codename` | `"jammy"` | Distribution codename |
+| `suite` | `"bookworm"` | Suite name used in APT sources |
+| `codename` | `"bookworm"` | Distribution codename |
 | `architectures` | `["amd64", "arm64"]` | Supported architectures |
 | `components` | `["main", "contrib"]` | Repository components |
 | `origin` | `"My Repository"` | Origin field in Release file |
@@ -126,7 +126,7 @@ Each distribution map supports:
 ```sh
 curl -X PUT \
   --data-binary @mypackage_1.0-1_amd64.deb \
-  http://localhost:4080/api/packages/jammy/main
+  http://localhost:4080/api/packages/bookworm/main
 ```
 
 Response (201):
@@ -149,17 +149,17 @@ When `api_token` is configured:
 curl -X PUT \
   -H "Authorization: Bearer your-secret-token" \
   --data-binary @mypackage_1.0-1_amd64.deb \
-  http://localhost:4080/api/packages/jammy/main
+  http://localhost:4080/api/packages/bookworm/main
 ```
 
 ### List packages
 
 ```sh
 # All packages in a component
-curl http://localhost:4080/api/packages/jammy/main
+curl http://localhost:4080/api/packages/bookworm/main
 
 # Filter by architecture
-curl http://localhost:4080/api/packages/jammy/main?arch=amd64
+curl http://localhost:4080/api/packages/bookworm/main?arch=amd64
 ```
 
 Response (200):
@@ -176,7 +176,7 @@ Response (200):
 
 ```sh
 curl -X DELETE \
-  http://localhost:4080/api/packages/jammy/main/mypackage/1.0-1/amd64
+  http://localhost:4080/api/packages/bookworm/main/mypackage/1.0-1/amd64
 ```
 
 Response (200):
@@ -213,7 +213,7 @@ curl -fsSL http://your-server:4080/key.gpg \
   | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg
 
 # 2. Add the repository
-echo "deb [signed-by=/usr/share/keyrings/repomatic_apt.gpg] http://your-server:4080 jammy main" \
+echo "deb [signed-by=/usr/share/keyrings/repomatic_apt.gpg] http://your-server:4080 bookworm main" \
   | sudo tee /etc/apt/sources.list.d/repomatic_apt.list
 
 # 3. Update and install
@@ -248,8 +248,8 @@ config :repomatic_apt,
   repo_root: "/var/lib/myapp/repo",
   distributions: [
     %{
-      suite: "jammy",
-      codename: "jammy",
+      suite: "bookworm",
+      codename: "bookworm",
       architectures: ["amd64"],
       components: ["main"],
       origin: "My App",
@@ -294,7 +294,7 @@ RepomaticApt creates the standard Debian repository structure:
 ```
 repo_root/
   dists/
-    jammy/
+    bookworm/
       Release
       Release.gpg
       InRelease

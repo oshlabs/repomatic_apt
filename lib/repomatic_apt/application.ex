@@ -12,7 +12,7 @@ defmodule RepomaticApt.Application do
   end
 
   defp server_children do
-    if Application.get_env(:repomatic_apt, :start_server, true) do
+    if Application.get_env(:repomatic_apt, :start_server, false) do
       [{Bandit, plug: RepomaticApt.Web.Router, port: RepomaticApt.Config.port()}]
     else
       []
