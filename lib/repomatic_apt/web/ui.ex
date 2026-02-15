@@ -1,8 +1,9 @@
 defmodule RepomaticApt.Web.Ui do
   use Plug.Router
 
-  alias RepomaticApt.{Config, Repo}
+  alias RepomaticApt.{Archive, Config, Repo}
 
+  plug(:parse_multipart)
   plug(:match)
   plug(:dispatch)
 
@@ -32,7 +33,7 @@ defmodule RepomaticApt.Web.Ui do
       <thead><tr><th>Suite</th><th>Codename</th><th>Components</th><th>Architectures</th><th>Origin</th></tr></thead>
       <tbody>#{rows}</tbody>
     </table>
-    <p><a href="/ui/setup">Setup Instructions</a></p>
+    <p><a href="/ui/upload">Upload Packages</a> | <a href="/ui/setup">Setup Instructions</a></p>
     """)
   end
 
@@ -51,6 +52,123 @@ defmodule RepomaticApt.Web.Ui do
     <pre><code>sudo apt update</code></pre>
     <p><a href="/ui">&larr; Back</a></p>
     """)
+  end
+
+  get "/upload" do
+    distributions = Config.distributions()
+
+    dist_options =
+      Enum.map_join(distributions, "\n", fn dist ->
+        suite = dist[:suite] || "unknown"
+        "<option value=\"#{escape(suite)}\">#{escape(suite)}</option>"
+      end)
+
+    first_dist = List.first(distributions) || %{}
+    components = first_dist[:components] || ["main"]
+
+    comp_options =
+      Enum.map_join(components, "\n", fn comp ->
+        "<option value=\"#{escape(comp)}\">#{escape(comp)}</option>"
+      end)
+
+    html(conn, "Upload Packages", """
+    <h2>Upload Packages</h2>
+    <p>Upload a <code>.tar.gz</code> or <code>.zip</code> archive containing <code>.deb</code> files.</p>
+    <form method="post" enctype="multipart/form-data">
+      <p>
+        <label>Distribution<br>
+          <select name="distribution">#{dist_options}</select>
+        </label>
+      </p>
+      <p>
+        <label>Component<br>
+          <select name="component">#{comp_options}</select>
+        </label>
+      </p>
+      <p>
+        <label>Archive file<br>
+          <input type="file" name="archive" accept=".tar.gz,.tgz,.zip">
+        </label>
+      </p>
+      <p><button type="submit">Upload</button></p>
+    </form>
+    <p><a href="/ui">&larr; Back</a></p>
+    """)
+  end
+
+  post "/upload" do
+    upload = conn.params["archive"]
+    distribution = conn.params["distribution"]
+    component = conn.params["component"]
+
+    cond do
+      is_nil(upload) or not is_map(upload) ->
+        html_error(conn, "No file uploaded.")
+
+      is_nil(distribution) or distribution == "" ->
+        html_error(conn, "No distribution selected.")
+
+      is_nil(component) or component == "" ->
+        html_error(conn, "No component selected.")
+
+      true ->
+        body = File.read!(upload.path)
+
+        case Archive.extract_debs(body) do
+          {:error, :unsupported_archive_format} ->
+            html_error(conn, "Unsupported archive format. Supported: .tar.gz, .zip")
+
+          {:error, {:extract_failed, reason}} ->
+            html_error(conn, "Failed to extract archive: #{inspect(reason)}")
+
+          {:ok, []} ->
+            html_error(conn, "Archive contains no .deb files.")
+
+          {:ok, deb_entries} ->
+            case Repo.add_packages_bulk(distribution, component, deb_entries) do
+              {:ok, packages} ->
+                rows =
+                  Enum.map_join(packages, "\n", fn pkg ->
+                    """
+                    <tr>
+                      <td>#{escape(pkg.name)}</td>
+                      <td>#{escape(pkg.version)}</td>
+                      <td>#{escape(pkg.architecture)}</td>
+                    </tr>
+                    """
+                  end)
+
+                html(conn, "Upload Successful", """
+                <h2>Upload Successful</h2>
+                <p>Added #{length(packages)} package(s) to #{escape(distribution)}/#{escape(component)}.</p>
+                <table>
+                  <thead><tr><th>Package</th><th>Version</th><th>Architecture</th></tr></thead>
+                  <tbody>#{rows}</tbody>
+                </table>
+                <p><a href="/ui/upload">Upload more</a> | <a href="/ui">&larr; Back</a></p>
+                """)
+
+              {:error, failures} ->
+                rows =
+                  Enum.map_join(failures, "\n", fn {file, reason} ->
+                    """
+                    <tr>
+                      <td>#{escape(file)}</td>
+                      <td>#{escape(to_string(reason))}</td>
+                    </tr>
+                    """
+                  end)
+
+                html_error(conn, """
+                <p>Some packages failed validation:</p>
+                <table>
+                  <thead><tr><th>File</th><th>Reason</th></tr></thead>
+                  <tbody>#{rows}</tbody>
+                </table>
+                """)
+            end
+        end
+    end
   end
 
   get "/:distribution" do
@@ -173,6 +291,25 @@ defmodule RepomaticApt.Web.Ui do
     conn
     |> put_resp_content_type("text/html")
     |> send_resp(200, page)
+  end
+
+  defp parse_multipart(conn, _opts) do
+    opts =
+      Plug.Parsers.init(
+        parsers: [:multipart],
+        pass: ["*/*"],
+        length: Config.max_upload_size()
+      )
+
+    Plug.Parsers.call(conn, opts)
+  end
+
+  defp html_error(conn, message) do
+    html(conn, "Upload Error", """
+    <h2>Upload Error</h2>
+    #{message}
+    <p><a href="/ui/upload">&larr; Try again</a></p>
+    """)
   end
 
   defp escape(nil), do: ""

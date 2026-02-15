@@ -98,6 +98,52 @@ defmodule RepomaticApt.Web.UiTest do
     assert content_type =~ "text/html"
   end
 
+  test "GET /ui/upload shows upload form" do
+    conn = Plug.Test.conn(:get, "/ui/upload") |> call()
+    assert conn.status == 200
+    assert conn.resp_body =~ "Upload Packages"
+    assert conn.resp_body =~ ~s(enctype="multipart/form-data")
+    assert conn.resp_body =~ ~s(name="archive")
+    assert conn.resp_body =~ ~s(name="distribution")
+    assert conn.resp_body =~ ~s(name="component")
+    assert conn.resp_body =~ "stable"
+  end
+
+  test "POST /ui/upload with valid tar.gz shows success page" do
+    deb1 = DebHelper.build_deb("upload-a", "1.0", "amd64")
+    deb2 = DebHelper.build_deb("upload-b", "2.0", "amd64")
+    archive = make_tar_gz([{"upload-a_1.0_amd64.deb", deb1}, {"upload-b_2.0_amd64.deb", deb2}])
+
+    conn = multipart_upload(archive) |> call()
+    assert conn.status == 200
+    assert conn.resp_body =~ "Upload Successful"
+    assert conn.resp_body =~ "upload-a"
+    assert conn.resp_body =~ "upload-b"
+    assert conn.resp_body =~ "2 package(s)"
+  end
+
+  test "POST /ui/upload with invalid archive shows error page" do
+    conn = multipart_upload("not an archive") |> call()
+    assert conn.status == 200
+    assert conn.resp_body =~ "Upload Error"
+    assert conn.resp_body =~ "Unsupported archive format"
+  end
+
+  test "POST /ui/upload with no .deb files shows error" do
+    archive = make_tar_gz([{"readme.txt", "hello"}])
+    conn = multipart_upload(archive) |> call()
+    assert conn.status == 200
+    assert conn.resp_body =~ "Upload Error"
+    assert conn.resp_body =~ "no .deb files"
+  end
+
+  test "GET /ui shows link to upload page" do
+    conn = Plug.Test.conn(:get, "/ui") |> call()
+    assert conn.status == 200
+    assert conn.resp_body =~ "Upload Packages"
+    assert conn.resp_body =~ "/ui/upload"
+  end
+
   test "HTML escapes user-provided content" do
     deb =
       DebHelper.build_deb([
@@ -115,5 +161,40 @@ defmodule RepomaticApt.Web.UiTest do
     conn = Plug.Test.conn(:get, "/ui/stable/main/amd64/xss-test/1.0") |> call()
     refute conn.resp_body =~ "<script>"
     assert conn.resp_body =~ "&lt;script&gt;"
+  end
+
+  defp make_tar_gz(files) do
+    tmp =
+      Path.join(
+        System.tmp_dir!(),
+        "repomatic_apt_ui_test_tar_#{:erlang.unique_integer([:positive])}.tar"
+      )
+
+    entries = Enum.map(files, fn {name, content} -> {~c"#{name}", content} end)
+    :ok = :erl_tar.create(~c"#{tmp}", entries)
+    tar_data = File.read!(tmp)
+    File.rm!(tmp)
+    :zlib.gzip(tar_data)
+  end
+
+  defp multipart_upload(archive_data, distribution \\ "stable", component \\ "main") do
+    boundary = "----TestBoundary#{:erlang.unique_integer([:positive])}"
+
+    body =
+      "--#{boundary}\r\n" <>
+        "Content-Disposition: form-data; name=\"distribution\"\r\n\r\n" <>
+        "#{distribution}\r\n" <>
+        "--#{boundary}\r\n" <>
+        "Content-Disposition: form-data; name=\"component\"\r\n\r\n" <>
+        "#{component}\r\n" <>
+        "--#{boundary}\r\n" <>
+        "Content-Disposition: form-data; name=\"archive\"; filename=\"upload.tar.gz\"\r\n" <>
+        "Content-Type: application/octet-stream\r\n\r\n" <>
+        archive_data <>
+        "\r\n" <>
+        "--#{boundary}--\r\n"
+
+    Plug.Test.conn(:post, "/ui/upload", body)
+    |> Plug.Conn.put_req_header("content-type", "multipart/form-data; boundary=#{boundary}")
   end
 end
