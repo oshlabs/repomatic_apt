@@ -118,12 +118,62 @@ Each distribution map supports:
 
 | Key | Example | Description |
 |-----|---------|-------------|
-| `suite` | `"bookworm"` | Suite name used in APT sources |
-| `codename` | `"bookworm"` | Distribution codename |
-| `architectures` | `["amd64", "arm64"]` | Supported architectures |
-| `components` | `["main", "contrib"]` | Repository components |
-| `origin` | `"My Repository"` | Origin field in Release file |
-| `label` | `"My Repository"` | Label field in Release file |
+| `suite` | `"bookworm"` | Debian release target, used in the APT sources line |
+| `codename` | `"bookworm"` | Release codename (often same as suite) |
+| `architectures` | `["amd64", "arm64"]` | Supported CPU architectures |
+| `components` | `["main", "voice"]` | Logical groupings within the distribution (like Debian's `main`, `contrib`, `non-free`) |
+| `origin` | `"MyOrg"` | Metadata in the Release file — who provides the repo |
+| `label` | `"MyOrg"` | Metadata in the Release file — label shown to APT users |
+
+A **suite** defines a separate repository tree (`dists/<suite>/`). **Components** are logical groupings within that tree — use them to separate packages by team, purpose, or policy. The `origin` and `label` fields are purely metadata written to the `Release` file; they don't affect repository structure.
+
+#### Example: multiple teams, multiple releases
+
+Two teams (systems and voice) each publishing packages for bookworm and trixie:
+
+```elixir
+distributions: [
+  %{
+    suite: "bookworm",
+    codename: "bookworm",
+    architectures: ["amd64"],
+    components: ["systems", "voice"],
+    origin: "MyOrg",
+    label: "MyOrg"
+  },
+  %{
+    suite: "trixie",
+    codename: "trixie",
+    architectures: ["amd64"],
+    components: ["systems", "voice"],
+    origin: "MyOrg",
+    label: "MyOrg"
+  }
+]
+```
+
+Each team uploads to their own component:
+
+```sh
+# Systems team
+curl -X PUT --data-binary @pkg.deb http://repo:4080/api/bookworm/systems
+
+# Voice team
+curl -X PUT --data-binary @pkg.deb http://repo:4080/api/bookworm/voice
+```
+
+Clients subscribe to the components they need:
+
+```sh
+# Just voice packages
+deb http://repo:4080 bookworm voice
+
+# Just systems packages
+deb http://repo:4080 bookworm systems
+
+# Both
+deb http://repo:4080 bookworm systems voice
+```
 
 ## Authentication
 

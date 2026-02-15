@@ -13,11 +13,11 @@ config :repomatic_apt,
   # keyfile: "/path/to/key.pem",
   distributions: [
     %{
-      suite: "stable",
-      codename: "stable",
-      architectures: ["amd64"],
-      components: ["main"],
-      origin: "RepomaticApt",
-      label: "RepomaticApt"
+      suite: "bookworm",         # Debian release target (used in APT sources line)
+      codename: "bookworm",      # release codename (often same as suite)
+      architectures: ["amd64"],  # supported CPU architectures
+      components: ["main"],      # repo sections (main, contrib, non-free, ...)
+      origin: "RepomaticApt",    # metadata project or team providing the repo
+      label: "RepomaticApt"      # metadata label shown to APT users
     }
   ]
