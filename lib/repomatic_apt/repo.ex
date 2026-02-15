@@ -9,6 +9,7 @@ defmodule RepomaticApt.Repo do
 
   alias RepomaticApt.{Config, MetadataStore, Store}
   alias RepomaticApt.Deb.Package
+  alias RepomaticApt.Gpg.Key
   alias RepomaticApt.Index.{Packages, Release, Compress}
   alias RepomaticApt.Gpg.Sign
 
@@ -19,7 +20,45 @@ defmodule RepomaticApt.Repo do
 
   @impl true
   def init(_opts) do
+    resolve_signing_key()
     {:ok, %{}}
+  end
+
+  defp resolve_signing_key do
+    case Config.signing_key() do
+      %Key{} ->
+        Logger.info("Using signing key from configuration")
+        :ok
+
+      nil ->
+        key_path = Path.join(Config.repo_root(), "signing_key.etf")
+
+        case File.read(key_path) do
+          {:ok, data} ->
+            key = Key.import_etf!(data)
+            Config.put(:signing_key, key)
+            Logger.info("Loaded signing key from #{key_path}")
+
+          {:error, _} ->
+            uid =
+              Application.get_env(:repomatic_apt, :signing_key_uid) ||
+                "RepomaticApt <repomatic_apt@localhost>"
+
+            key = Key.generate(uid: uid)
+
+            with :ok <- File.mkdir_p(Path.dirname(key_path)),
+                 :ok <- File.write(key_path, Key.export_etf(key)) do
+              Logger.info("Generated new signing key, saved to #{key_path}")
+            else
+              {:error, reason} ->
+                Logger.warning(
+                  "Generated signing key but could not save to #{key_path}: #{inspect(reason)}"
+                )
+            end
+
+            Config.put(:signing_key, key)
+        end
+    end
   end
 
   @spec add_package(String.t(), String.t(), binary()) :: {:ok, Package.t()} | {:error, term()}

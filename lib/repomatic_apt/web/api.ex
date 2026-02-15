@@ -7,6 +7,31 @@ defmodule RepomaticApt.Web.Api do
   plug(:authorize)
   plug(:dispatch)
 
+  get "/key/public" do
+    case RepomaticApt.Repo.get_public_key() do
+      nil ->
+        json(conn, 404, %{error: "No signing key configured"})
+
+      pubkey ->
+        conn
+        |> put_resp_content_type("application/pgp-keys")
+        |> send_resp(200, pubkey)
+    end
+  end
+
+  get "/key/private" do
+    case RepomaticApt.Config.signing_key() do
+      nil ->
+        json(conn, 404, %{error: "No signing key configured"})
+
+      key ->
+        conn
+        |> put_resp_content_type("application/octet-stream")
+        |> put_resp_header("content-disposition", "attachment; filename=\"signing_key.etf\"")
+        |> send_resp(200, RepomaticApt.Gpg.Key.export_etf(key))
+    end
+  end
+
   put "/:distribution/:component/bulk" do
     max_size = RepomaticApt.Config.max_upload_size()
 

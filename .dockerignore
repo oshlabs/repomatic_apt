@@ -1,0 +1,11 @@
+_build/
+deps/
+.git/
+test/
+tmp/
+doc/
+cover/
+.elixir_ls/
+.formatter.exs
+*.ez
+erl_crash.dump

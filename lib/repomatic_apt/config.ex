@@ -35,6 +35,9 @@ defmodule RepomaticApt.Config do
     |> Enum.find(%{}, fn d -> d[:suite] == name || d[:codename] == name end)
   end
 
+  @spec ip() :: :inet.socket_address()
+  def ip, do: get(:ip, {0, 0, 0, 0})
+
   @spec signing_key() :: Key.t() | nil
   def signing_key, do: get(:signing_key)
 
@@ -63,6 +66,12 @@ defmodule RepomaticApt.Config do
         {Local, Local.new(root)}
       end
     end)
+  end
+
+  @doc "Set a config value at runtime."
+  @spec put(atom(), term()) :: :ok
+  def put(key, value) do
+    Agent.update(__MODULE__, fn state -> Map.put(state, key, value) end)
   end
 
   defp get(key, default \\ nil) do

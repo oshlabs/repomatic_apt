@@ -50,6 +50,24 @@ defmodule RepomaticApt.Gpg.KeyTest do
     assert <<4, _rest::binary>> = body
   end
 
+  test "ETF roundtrip preserves key", %{key: key} do
+    etf = Key.export_etf(key)
+    assert is_binary(etf)
+    restored = Key.import_etf!(etf)
+    assert restored.uid == key.uid
+    assert restored.creation_time == key.creation_time
+    assert restored.n == key.n
+    assert restored.e == key.e
+    assert restored.erlang_priv == key.erlang_priv
+    assert Key.fingerprint(restored) == Key.fingerprint(key)
+    assert Key.export_public(restored) == Key.export_public(key)
+  end
+
+  test "import_etf! trims whitespace", %{key: key} do
+    etf = Key.export_etf(key)
+    assert Key.import_etf!("  " <> etf <> "\n") == Key.import_etf!(etf)
+  end
+
   test "p < q in generated key", %{key: key} do
     p = :binary.decode_unsigned(key.p)
     q = :binary.decode_unsigned(key.q)

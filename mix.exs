@@ -8,6 +8,7 @@ defmodule RepomaticApt.MixProject do
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      releases: releases(),
       deps: deps()
     ]
   end
@@ -16,6 +17,14 @@ defmodule RepomaticApt.MixProject do
     [
       extra_applications: [:logger, :crypto],
       mod: {RepomaticApt.Application, []}
+    ]
+  end
+
+  defp releases do
+    [
+      repomatic_apt: [
+        include_executables_for: [:unix]
+      ]
     ]
   end
 

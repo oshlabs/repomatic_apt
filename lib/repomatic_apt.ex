@@ -46,7 +46,11 @@ defmodule RepomaticApt do
         Keyword.get(opts, :port) ||
           Application.get_env(:repomatic_apt, :port, 4080)
 
-      [{Bandit, plug: RepomaticApt.Web.Router, port: port}]
+      ip =
+        Keyword.get(opts, :ip) ||
+          Application.get_env(:repomatic_apt, :ip, {0, 0, 0, 0})
+
+      [{Bandit, plug: RepomaticApt.Web.Router, port: port, ip: ip}]
     else
       []
     end

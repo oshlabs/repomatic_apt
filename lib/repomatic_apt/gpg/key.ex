@@ -139,6 +139,18 @@ defmodule RepomaticApt.Gpg.Key do
     Armor.encode(data, "PGP PUBLIC KEY BLOCK")
   end
 
+  @doc "Serialize a Key struct to a base64-encoded ETF binary."
+  @spec export_etf(t()) :: String.t()
+  def export_etf(%__MODULE__{} = key) do
+    Base.encode64(:erlang.term_to_binary(key))
+  end
+
+  @doc "Deserialize a Key struct from a base64-encoded ETF binary."
+  @spec import_etf!(String.t()) :: t()
+  def import_etf!(data) when is_binary(data) do
+    %__MODULE__{} = data |> String.trim() |> Base.decode64!() |> :erlang.binary_to_term([:safe])
+  end
+
   @doc "Export armored secret key (secret packet + UID + self-sig)."
   @spec export_secret(t()) :: String.t()
   def export_secret(%__MODULE__{} = key) do
