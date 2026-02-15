@@ -364,6 +364,39 @@ The web UI is available at `/ui` and provides:
 - **Package detail** — version, description, dependencies, SHA256, download link
 - **Setup instructions** — copy-paste commands for configuring APT clients
 
+## Testing
+
+```sh
+mix test                        # run all unit tests
+mix test test/version_test.exs  # single file
+mix test test/repo_test.exs:37  # single test by line number
+mix test --failed               # rerun failures
+```
+
+### Test suite overview
+
+The unit tests cover every layer of the stack without external dependencies:
+
+- **deb/** — ar archive parsing, RFC 822 control file parsing, `.deb` metadata extraction
+- **gpg/** — ASCII armor encoding, CRC-24 checksums, MPI/packet framing, RSA key generation, detached and clearsign signatures
+- **index/** — Packages index generation, Release file generation, gzip compression
+- **web/** — REST API (upload, list, delete), Plug router, static file serving, HTML UI
+- **repo** — end-to-end add/remove/list through the GenServer, concurrent uploads, signed index generation
+- **store** — file storage, pool layout, atomic writes, Acquire-By-Hash
+- **version** — Debian version string parsing and comparison
+
+A test signing key (2048-bit RSA, for speed) is generated once in `test_helper.exs` and shared across all tests.
+
+### Docker integration test
+
+An end-to-end integration test verifies that a real Debian system can consume the repository. It starts an in-memory APT repo, uploads an installable `.deb`, then runs a Debian 13 (trixie) Docker container that installs the package via `apt-get` and checks the installed files.
+
+Docker tests are excluded by default and require Docker on the host (Linux with `--network host`):
+
+```sh
+mix test --include docker test/integration/docker_test.exs
+```
+
 ## Development
 
 ```sh

@@ -1,3 +1,4 @@
+ExUnit.configure(exclude: [:docker])
 ExUnit.start()
 
 # Generate a test signing key (2048 bits for speed)
