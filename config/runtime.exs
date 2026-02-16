@@ -45,6 +45,11 @@ if config_env() == :prod do
     config :repomatic_apt, signing_key: key
   end
 
+  if key_data = System.get_env("REPOMATIC_SIGNING_KEY") do
+    key = RepomaticApt.Gpg.Key.import_etf!(key_data)
+    config :repomatic_apt, signing_key: key
+  end
+
   if uid = System.get_env("REPOMATIC_SIGNING_KEY_UID") do
     config :repomatic_apt, signing_key_uid: uid
   end

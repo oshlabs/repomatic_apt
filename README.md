@@ -32,23 +32,16 @@ mix deps.get
 
 ### 2. Generate a signing key
 
-Open an IEx session and generate a key:
-
 ```sh
-iex -S mix
+mix repomatic_apt.gen_key --uid "My Repository <repo@example.com>"
 ```
 
-```elixir
-key = RepomaticApt.Gpg.Key.generate(
-  bits: 4096,
-  uid: "My Repository <repo@example.com>"
-)
+This writes `signing_key.etf` (private, keep safe) and `signing_key.asc` (public, for distribution).
 
-# Export the private key to a file (keep this safe!)
-File.write!("signing_key.asc", RepomaticApt.Gpg.Key.export_secret(key))
+For Kubernetes, generate a Secret YAML directly:
 
-# Export the public key for distribution
-File.write!("public_key.asc", RepomaticApt.Gpg.Key.export_public(key))
+```sh
+mix repomatic_apt.gen_key --k8s --uid "My Repository <repo@example.com>"
 ```
 
 ### 3. Configure
@@ -81,12 +74,17 @@ config :repomatic_apt,
   ]
 ```
 
-Or set the key programmatically before the app starts:
+Or pass the signing key via environment variable (recommended for containers/Kubernetes):
 
-```elixir
-key = RepomaticApt.Gpg.Key.generate(bits: 4096, uid: "Repo <repo@example.com>")
-Application.put_env(:repomatic_apt, :signing_key, key)
+```sh
+# Pass the key inline (in-memory only, never written to disk)
+REPOMATIC_SIGNING_KEY="$(cat signing_key.etf)" mix run --no-halt
+
+# Or point to a file
+REPOMATIC_SIGNING_KEY_PATH=signing_key.etf mix run --no-halt
 ```
+
+If no key is provided, the server auto-generates one on startup and saves it to `<repo_root>/signing_key.etf`.
 
 ### 4. Run
 
@@ -568,6 +566,12 @@ mix format
 
 # Start an interactive session
 iex -S mix
+
+# Generate a signing key (writes signing_key.etf + signing_key.asc)
+mix repomatic_apt.gen_key --uid "My Repo <repo@example.com>"
+
+# Generate a signing key as Kubernetes Secret YAML
+mix repomatic_apt.gen_key --k8s --uid "My Repo <repo@example.com>"
 ```
 
 ## License

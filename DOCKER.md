@@ -24,6 +24,7 @@ The server will auto-generate a signing key on first start and persist it in the
 | `REPOMATIC_RO_TOKEN` | *(none — open read)* | Read-only token for repo access (HTTP Basic auth) |
 | `REPOMATIC_MAX_UPLOAD_SIZE` | `104857600` (100 MB) | Max upload bytes |
 | `REPOMATIC_DISTRIBUTIONS` | See dev.exs | JSON array of distribution objects |
+| `REPOMATIC_SIGNING_KEY` | *(none)* | Signing key as base64-encoded ETF string (in-memory only, no disk write) |
 | `REPOMATIC_SIGNING_KEY_PATH` | *(none)* | Path to ETF key file |
 | `REPOMATIC_SIGNING_KEY_UID` | `RepomaticApt <repomatic_apt@localhost>` | UID for auto-generated key |
 | `REPOMATIC_TLS_CERTFILE` | *(none)* | Path to PEM certificate file |
@@ -93,23 +94,35 @@ containers:
 
 ## Signing Key Management
 
-### Auto-generated key (default)
+The signing key is used to sign `Release.gpg` and `InRelease` files and is served to clients via `/key.gpg`. There are three ways to provide a signing key, checked in this order:
 
-On first start, if no signing key is configured, the server generates a 4096-bit RSA key and saves it to `<repo_root>/signing_key.etf`. As long as your data volume persists, the key persists.
+| Method | Env var | Disk write | Best for |
+|--------|---------|------------|----------|
+| Inline via env var | `REPOMATIC_SIGNING_KEY` | No (in-memory only) | Kubernetes, containers |
+| File path | `REPOMATIC_SIGNING_KEY_PATH` | No | Docker with mounted secrets |
+| Auto-generated | *(none)* | Yes (`<repo_root>/signing_key.etf`) | Local dev, simple Docker setups |
 
-### Export key via API
+If `REPOMATIC_SIGNING_KEY` is set, `REPOMATIC_SIGNING_KEY_PATH` is ignored.
+
+### Passing the key via environment variable (recommended for Kubernetes)
+
+The key stays in memory only — nothing is written to disk. Generate the key and pass it as an env var:
 
 ```bash
-# Public key (armored PGP)
-curl -H "Authorization: Bearer $TOKEN" http://localhost:4080/api/key/public -o repo.asc
+# Generate the key
+mix repomatic_apt.gen_key --uid "My Repo <repo@example.com>"
 
-# Private key (ETF format — for backup or migrating to another instance)
-curl -H "Authorization: Bearer $TOKEN" http://localhost:4080/api/key/private -o signing_key.etf
+# Pass it inline
+docker run -d \
+  -e "REPOMATIC_SIGNING_KEY=$(cat signing_key.etf)" \
+  -e REPOMATIC_API_TOKEN=secret \
+  -p 4080:4080 \
+  repomatic_apt
 ```
 
-### Import key on new instance
+### Passing the key via file path
 
-Set `REPOMATIC_SIGNING_KEY_PATH` to the ETF file path (must be accessible inside the container):
+Mount the ETF file into the container and point to it:
 
 ```bash
 docker run -d \
@@ -120,13 +133,29 @@ docker run -d \
   repomatic_apt
 ```
 
+### Auto-generated key (default)
+
+On first start, if no signing key is configured, the server generates a 4096-bit RSA key and saves it to `<repo_root>/signing_key.etf`. As long as your data volume persists, the key persists.
+
 ### Pre-generate key with Mix task
 
 ```bash
-mix repomatic_apt.gen_key --output signing_key.etf --uid "My Repo <repo@example.com>" --bits 4096
+# Write signing_key.etf + signing_key.asc files
+mix repomatic_apt.gen_key --uid "My Repo <repo@example.com>"
+
+# Output a Kubernetes Secret YAML (pipe to kubectl apply -f -)
+mix repomatic_apt.gen_key --k8s --uid "My Repo <repo@example.com>"
 ```
 
-This writes `signing_key.etf` and `signing_key.asc` (public key).
+### Export key via API
+
+```bash
+# Public key (armored PGP)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:4080/api/key/public -o repo.asc
+
+# Private key (ETF format — for backup or migrating to another instance)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:4080/api/key/private -o signing_key.etf
+```
 
 ## Custom Distributions
 
@@ -174,6 +203,14 @@ spec:
 
 ### Secret
 
+Generate a signing key Secret directly with the Mix task:
+
+```bash
+mix repomatic_apt.gen_key --k8s --uid "My Repo <repo@example.com>" | kubectl apply -f -
+```
+
+Then create a separate Secret for the API token, or combine both in a single manifest:
+
 ```yaml
 apiVersion: v1
 kind: Secret
@@ -182,6 +219,7 @@ metadata:
 type: Opaque
 stringData:
   api-token: "your-secret-token"
+  signing-key: "<contents of signing_key.etf>"
 ```
 
 ### Deployment
@@ -212,6 +250,11 @@ spec:
                 secretKeyRef:
                   name: repomatic-secret
                   key: api-token
+            - name: REPOMATIC_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: repomatic-secret
+                  key: signing-key
           volumeMounts:
             - name: data
               mountPath: /var/lib/repomatic_apt/repo
