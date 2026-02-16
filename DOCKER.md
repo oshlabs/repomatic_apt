@@ -18,7 +18,7 @@ The server will auto-generate a signing key on first start and persist it in the
 | Variable | Default | Description |
 |---|---|---|
 | `REPOMATIC_REPO_ROOT` | `/var/lib/repomatic_apt/repo` | Data directory |
-| `REPOMATIC_PORT` | `4080` | HTTP port |
+| `REPOMATIC_LISTEN_PORT` | `4080` | HTTP port |
 | `REPOMATIC_IP` | `0.0.0.0` | Bind address |
 | `REPOMATIC_API_TOKEN` | *(none — no auth)* | Bearer token for API auth |
 | `REPOMATIC_RO_TOKEN` | *(none — open read)* | Read-only token for repo access (HTTP Basic auth) |
@@ -39,7 +39,7 @@ docker run -d \
   -p 4443:4443 \
   -v /path/to/certs:/certs:ro \
   -v repomatic_data:/var/lib/repomatic_apt/repo \
-  -e REPOMATIC_PORT=4443 \
+  -e REPOMATIC_LISTEN_PORT=4443 \
   -e REPOMATIC_TLS_CERTFILE=/certs/cert.pem \
   -e REPOMATIC_TLS_KEYFILE=/certs/key.pem \
   -e REPOMATIC_API_TOKEN=secret \
@@ -58,7 +58,7 @@ services:
       - repomatic_data:/var/lib/repomatic_apt/repo
       - ./certs:/certs:ro
     environment:
-      REPOMATIC_PORT: "4443"
+      REPOMATIC_LISTEN_PORT: "4443"
       REPOMATIC_TLS_CERTFILE: /certs/cert.pem
       REPOMATIC_TLS_KEYFILE: /certs/key.pem
       REPOMATIC_API_TOKEN: "${REPOMATIC_API_TOKEN}"
@@ -84,7 +84,7 @@ containers:
         mountPath: /certs
         readOnly: true
     env:
-      - name: REPOMATIC_PORT
+      - name: REPOMATIC_LISTEN_PORT
         value: "4443"
       - name: REPOMATIC_TLS_CERTFILE
         value: /certs/tls.crt

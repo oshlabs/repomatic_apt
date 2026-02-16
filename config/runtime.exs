@@ -8,7 +8,7 @@ if config_env() == :prod do
     config :repomatic_apt, repo_root: repo_root
   end
 
-  if port = System.get_env("REPOMATIC_PORT") do
+  if port = System.get_env("REPOMATIC_LISTEN_PORT") do
     config :repomatic_apt, port: String.to_integer(port)
   end
 
