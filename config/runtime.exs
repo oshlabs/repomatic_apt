@@ -12,7 +12,7 @@ if config_env() == :prod do
     config :repomatic_apt, port: String.to_integer(port)
   end
 
-  if ip_str = System.get_env("REPOMATIC_IP") do
+  if ip_str = System.get_env("REPOMATIC_LISTEN_IP") do
     {:ok, ip} = :inet.parse_address(String.to_charlist(ip_str))
     config :repomatic_apt, ip: ip
   end

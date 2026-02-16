@@ -19,7 +19,7 @@ The server will auto-generate a signing key on first start and persist it in the
 |---|---|---|
 | `REPOMATIC_REPO_ROOT` | `/var/lib/repomatic_apt/repo` | Data directory |
 | `REPOMATIC_LISTEN_PORT` | `4080` | HTTP port |
-| `REPOMATIC_IP` | `0.0.0.0` | Bind address |
+| `REPOMATIC_LISTEN_IP` | `0.0.0.0` | Bind address |
 | `REPOMATIC_API_TOKEN` | *(none — no auth)* | Bearer token for API auth |
 | `REPOMATIC_RO_TOKEN` | *(none — open read)* | Read-only token for repo access (HTTP Basic auth) |
 | `REPOMATIC_MAX_UPLOAD_SIZE` | `104857600` (100 MB) | Max upload bytes |
