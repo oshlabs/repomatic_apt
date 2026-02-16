@@ -126,7 +126,7 @@ defmodule RepomaticApt.Web.UiTest do
     conn = multipart_upload("not an archive") |> call()
     assert conn.status == 200
     assert conn.resp_body =~ "Upload Error"
-    assert conn.resp_body =~ "Unsupported archive format"
+    assert conn.resp_body =~ "Unsupported file format"
   end
 
   test "POST /ui/upload with no .deb files shows error" do

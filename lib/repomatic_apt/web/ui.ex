@@ -96,7 +96,7 @@ defmodule RepomaticApt.Web.Ui do
 
     html(conn, "Upload Packages", """
     <h2>Upload Packages</h2>
-    <p>Upload a <code>.tar.gz</code> or <code>.zip</code> archive containing <code>.deb</code> files.</p>
+    <p>Upload a <code>.deb</code> file, or a <code>.tar.gz</code> / <code>.zip</code> archive containing multiple <code>.deb</code> files.</p>
     <form method="post" enctype="multipart/form-data">
       <p>
         <label>Distribution<br>
@@ -109,8 +109,8 @@ defmodule RepomaticApt.Web.Ui do
         </label>
       </p>
       <p>
-        <label>Archive file<br>
-          <input type="file" name="archive" accept=".tar.gz,.tgz,.zip">
+        <label>Package file<br>
+          <input type="file" name="archive" accept=".deb,.tar.gz,.tgz,.zip">
         </label>
       </p>
       <p><button type="submit">Upload</button></p>
@@ -137,59 +137,10 @@ defmodule RepomaticApt.Web.Ui do
       true ->
         body = File.read!(upload.path)
 
-        case Archive.extract_debs(body) do
-          {:error, :unsupported_archive_format} ->
-            html_error(conn, "Unsupported archive format. Supported: .tar.gz, .zip")
-
-          {:error, {:extract_failed, reason}} ->
-            html_error(conn, "Failed to extract archive: #{inspect(reason)}")
-
-          {:ok, []} ->
-            html_error(conn, "Archive contains no .deb files.")
-
-          {:ok, deb_entries} ->
-            case Repo.add_packages_bulk(distribution, component, deb_entries) do
-              {:ok, packages} ->
-                rows =
-                  Enum.map_join(packages, "\n", fn pkg ->
-                    """
-                    <tr>
-                      <td>#{escape(pkg.name)}</td>
-                      <td>#{escape(pkg.version)}</td>
-                      <td>#{escape(pkg.architecture)}</td>
-                    </tr>
-                    """
-                  end)
-
-                html(conn, "Upload Successful", """
-                <h2>Upload Successful</h2>
-                <p>Added #{length(packages)} package(s) to #{escape(distribution)}/#{escape(component)}.</p>
-                <table>
-                  <thead><tr><th>Package</th><th>Version</th><th>Architecture</th></tr></thead>
-                  <tbody>#{rows}</tbody>
-                </table>
-                <p><a href="/ui/upload">Upload more</a> | <a href="/ui">&larr; Back</a></p>
-                """)
-
-              {:error, failures} ->
-                rows =
-                  Enum.map_join(failures, "\n", fn {file, reason} ->
-                    """
-                    <tr>
-                      <td>#{escape(file)}</td>
-                      <td>#{escape(to_string(reason))}</td>
-                    </tr>
-                    """
-                  end)
-
-                html_error(conn, """
-                <p>Some packages failed validation:</p>
-                <table>
-                  <thead><tr><th>File</th><th>Reason</th></tr></thead>
-                  <tbody>#{rows}</tbody>
-                </table>
-                """)
-            end
+        if deb_file?(upload.filename, body) do
+          upload_single_deb(conn, body, distribution, component)
+        else
+          upload_archive(conn, body, distribution, component)
         end
     end
   end
@@ -325,6 +276,91 @@ defmodule RepomaticApt.Web.Ui do
       )
 
     Plug.Parsers.call(conn, opts)
+  end
+
+  # ar archives (`.deb` files) start with "!<arch>\n"
+  defp deb_file?(_filename, <<"!<arch>\n", _::binary>>), do: true
+  defp deb_file?(filename, _body), do: String.ends_with?(filename || "", ".deb")
+
+  defp upload_single_deb(conn, body, distribution, component) do
+    case Repo.add_package(distribution, component, body) do
+      {:ok, pkg} ->
+        html(conn, "Upload Successful", """
+        <h2>Upload Successful</h2>
+        <p>Added package to #{escape(distribution)}/#{escape(component)}.</p>
+        <table>
+          <thead><tr><th>Package</th><th>Version</th><th>Architecture</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>#{escape(pkg.name)}</td>
+              <td>#{escape(pkg.version)}</td>
+              <td>#{escape(pkg.architecture)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p><a href="/ui/upload">Upload more</a> | <a href="/ui">&larr; Back</a></p>
+        """)
+
+      {:error, reason} ->
+        html_error(conn, "Failed to add package: #{escape(to_string(reason))}")
+    end
+  end
+
+  defp upload_archive(conn, body, distribution, component) do
+    case Archive.extract_debs(body) do
+      {:error, :unsupported_archive_format} ->
+        html_error(conn, "Unsupported file format. Supported: .deb, .tar.gz, .zip")
+
+      {:error, {:extract_failed, reason}} ->
+        html_error(conn, "Failed to extract archive: #{inspect(reason)}")
+
+      {:ok, []} ->
+        html_error(conn, "Archive contains no .deb files.")
+
+      {:ok, deb_entries} ->
+        case Repo.add_packages_bulk(distribution, component, deb_entries) do
+          {:ok, packages} ->
+            rows =
+              Enum.map_join(packages, "\n", fn pkg ->
+                """
+                <tr>
+                  <td>#{escape(pkg.name)}</td>
+                  <td>#{escape(pkg.version)}</td>
+                  <td>#{escape(pkg.architecture)}</td>
+                </tr>
+                """
+              end)
+
+            html(conn, "Upload Successful", """
+            <h2>Upload Successful</h2>
+            <p>Added #{length(packages)} package(s) to #{escape(distribution)}/#{escape(component)}.</p>
+            <table>
+              <thead><tr><th>Package</th><th>Version</th><th>Architecture</th></tr></thead>
+              <tbody>#{rows}</tbody>
+            </table>
+            <p><a href="/ui/upload">Upload more</a> | <a href="/ui">&larr; Back</a></p>
+            """)
+
+          {:error, failures} ->
+            rows =
+              Enum.map_join(failures, "\n", fn {file, reason} ->
+                """
+                <tr>
+                  <td>#{escape(file)}</td>
+                  <td>#{escape(to_string(reason))}</td>
+                </tr>
+                """
+              end)
+
+            html_error(conn, """
+            <p>Some packages failed validation:</p>
+            <table>
+              <thead><tr><th>File</th><th>Reason</th></tr></thead>
+              <tbody>#{rows}</tbody>
+            </table>
+            """)
+        end
+    end
   end
 
   defp html_error(conn, message) do
