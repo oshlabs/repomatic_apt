@@ -39,13 +39,7 @@ defmodule RepomaticApt.Web.Ui do
   end
 
   get "/setup" do
-    host = conn.host || "localhost"
-    port = Config.port()
-
-    scheme =
-      if Application.get_env(:repomatic_apt, :certfile), do: "https", else: "http"
-
-    base_url = "#{scheme}://#{host}:#{port}"
+    base_url = external_base_url(conn)
     ro_token = Config.ro_token()
 
     auth_step =
@@ -408,6 +402,37 @@ defmodule RepomaticApt.Web.Ui do
     #{message}
     <p><a href="/ui/upload">&larr; Try again</a></p>
     """)
+  end
+
+  defp external_base_url(conn) do
+    scheme = forwarded_header(conn, "x-forwarded-proto") || request_scheme(conn)
+
+    host = conn.host || "localhost"
+
+    port =
+      case forwarded_header(conn, "x-forwarded-port") do
+        nil -> Config.port()
+        val -> String.to_integer(val)
+      end
+
+    default_port = if scheme == "https", do: 443, else: 80
+
+    if port == default_port do
+      "#{scheme}://#{host}"
+    else
+      "#{scheme}://#{host}:#{port}"
+    end
+  end
+
+  defp forwarded_header(conn, header) do
+    case Plug.Conn.get_req_header(conn, header) do
+      [val | _] -> val
+      [] -> nil
+    end
+  end
+
+  defp request_scheme(_conn) do
+    if Application.get_env(:repomatic_apt, :certfile), do: "https", else: "http"
   end
 
   defp escape(nil), do: ""
