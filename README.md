@@ -355,7 +355,7 @@ On a Debian/Ubuntu machine, configure APT to use the repository:
 curl -fsSL http://your-server:4080/key.gpg \
   | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg
 
-# 2. Add the repository
+# 2. Add the repository (use your actual suite and components)
 echo "deb [signed-by=/usr/share/keyrings/repomatic_apt.gpg] http://your-server:4080 bookworm main" \
   | sudo tee /etc/apt/sources.list.d/repomatic_apt.list
 
