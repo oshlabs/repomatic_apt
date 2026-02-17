@@ -28,14 +28,25 @@ defmodule RepomaticApt.Web.Ui do
         """
       end)
 
-    html(conn, "Distributions", """
-    <h2>Distributions</h2>
-    <table>
-      <thead><tr><th>Suite</th><th>Codename</th><th>Components</th><th>Architectures</th><th>Origin</th></tr></thead>
-      <tbody>#{rows}</tbody>
-    </table>
-    <p>#{if conn.assigns[:ui_write], do: ~s(<a href="/ui/upload">Upload Packages</a> | ), else: ""}<a href="/ui/setup">Setup Instructions</a></p>
-    """)
+    upload_link =
+      if conn.assigns[:ui_write],
+        do: ~s(<a href="/ui/upload">Upload Packages</a> | ),
+        else: ""
+
+    {logout_link, logout_script} =
+      if authenticated?(conn),
+        do: {~s[ | <a href="/ui" onclick="return logout()">Logout</a>], logout_script()},
+        else: {"", ""}
+
+    html(conn, "Distributions", Enum.join([
+      "<h2>Distributions</h2>",
+      "<table>",
+      "<thead><tr><th>Suite</th><th>Codename</th><th>Components</th><th>Architectures</th><th>Origin</th></tr></thead>",
+      "<tbody>", rows, "</tbody>",
+      "</table>",
+      "<p>", upload_link, ~s(<a href="/ui/setup">Setup Instructions</a>), logout_link, "</p>",
+      logout_script
+    ]))
   end
 
   get "/setup" do
@@ -138,6 +149,12 @@ defmodule RepomaticApt.Web.Ui do
           upload_archive(conn, body, distribution, component)
         end
     end
+  end
+
+  get "/logout" do
+    conn
+    |> put_resp_header("www-authenticate", ~s(Basic realm="RepomaticApt"))
+    |> send_resp(401, "")
   end
 
   get "/:distribution" do
@@ -402,6 +419,14 @@ defmodule RepomaticApt.Web.Ui do
     #{message}
     <p><a href="/ui/upload">&larr; Try again</a></p>
     """)
+  end
+
+  defp authenticated?(conn) do
+    Plug.BasicAuth.parse_basic_auth(conn) != :error
+  end
+
+  defp logout_script do
+    ~s[<script>function logout(){var x=new XMLHttpRequest();x.open("GET","/ui/logout",true,"_","_");x.onloadend=function(){window.location.href="/ui"};x.send();return false}</script>]
   end
 
   defp external_base_url(conn) do

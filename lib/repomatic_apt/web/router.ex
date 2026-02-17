@@ -55,6 +55,9 @@ defmodule RepomaticApt.Web.Router do
       match?(["api" | _], conn.path_info) ->
         conn
 
+      match?(["ui", "logout"], conn.path_info) ->
+        conn
+
       match?(["ui" | _], conn.path_info) ->
         authorize_ui(conn, ro_token, api_token)
 
