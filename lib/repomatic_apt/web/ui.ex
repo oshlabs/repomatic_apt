@@ -283,7 +283,7 @@ defmodule RepomaticApt.Web.Ui do
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <title>#{title} - RepomaticApt</title>
       <style>
-        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; color: #333; }
+        body { font-family: system-ui, sans-serif; max-width: 1400px; margin: 2em auto; padding: 0 1em; color: #333; }
         h1 a { color: inherit; text-decoration: none; }
         table { border-collapse: collapse; width: 100%; margin: 1em 0; }
         th, td { border: 1px solid #ddd; padding: 0.5em 0.75em; text-align: left; }
@@ -351,7 +351,7 @@ defmodule RepomaticApt.Web.Ui do
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <title>Forbidden - RepomaticApt</title>
       <style>
-        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; color: #333; }
+        body { font-family: system-ui, sans-serif; max-width: 1400px; margin: 2em auto; padding: 0 1em; color: #333; }
         h1 a { color: inherit; text-decoration: none; }
         a { color: #0366d6; }
       </style>
