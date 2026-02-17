@@ -5,6 +5,7 @@ defmodule RepomaticApt.Web.Ui do
 
   plug(:parse_multipart)
   plug(:match)
+  plug(:authorize_write)
   plug(:dispatch)
 
   get "/" do
@@ -33,7 +34,7 @@ defmodule RepomaticApt.Web.Ui do
       <thead><tr><th>Suite</th><th>Codename</th><th>Components</th><th>Architectures</th><th>Origin</th></tr></thead>
       <tbody>#{rows}</tbody>
     </table>
-    <p><a href="/ui/upload">Upload Packages</a> | <a href="/ui/setup">Setup Instructions</a></p>
+    <p>#{if conn.assigns[:ui_write], do: ~s(<a href="/ui/upload">Upload Packages</a> | ), else: ""}<a href="/ui/setup">Setup Instructions</a></p>
     """)
   end
 
@@ -276,6 +277,44 @@ defmodule RepomaticApt.Web.Ui do
       )
 
     Plug.Parsers.call(conn, opts)
+  end
+
+  defp authorize_write(%{method: method, path_info: ["upload"]} = conn, _opts)
+       when method in ["GET", "POST"] do
+    if conn.assigns[:ui_write] do
+      conn
+    else
+      conn
+      |> put_resp_content_type("text/html")
+      |> send_resp(403, forbidden_page())
+      |> halt()
+    end
+  end
+
+  defp authorize_write(conn, _opts), do: conn
+
+  defp forbidden_page do
+    """
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Forbidden - RepomaticApt</title>
+      <style>
+        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; color: #333; }
+        h1 a { color: inherit; text-decoration: none; }
+        a { color: #0366d6; }
+      </style>
+    </head>
+    <body>
+      <h1><a href="/ui">RepomaticApt</a></h1>
+      <h2>Forbidden</h2>
+      <p>You have read-only access. Upload is not available.</p>
+      <p><a href="/ui">&larr; Back</a></p>
+    </body>
+    </html>
+    """
   end
 
   # ar archives (`.deb` files) start with "!<arch>\n"

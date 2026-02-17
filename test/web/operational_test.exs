@@ -174,6 +174,108 @@ defmodule RepomaticApt.Web.OperationalTest do
     "Basic " <> Base.encode64("#{user}:#{pass}")
   end
 
+  # UI role-based auth (ro_token vs api_token)
+
+  test "UI accepts api_token via Basic Auth and grants upload access" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    conn =
+      Plug.Test.conn(:get, "/ui/upload")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "admin123"))
+      |> call()
+
+    assert conn.status == 200
+    assert conn.resp_body =~ "Upload Packages"
+  end
+
+  test "UI accepts ro_token via Basic Auth but denies upload" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    get_conn =
+      Plug.Test.conn(:get, "/ui/upload")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "readpass"))
+      |> call()
+
+    assert get_conn.status == 403
+    assert get_conn.resp_body =~ "read-only access"
+
+    post_conn =
+      Plug.Test.conn(:post, "/ui/upload")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "readpass"))
+      |> call()
+
+    assert post_conn.status == 403
+  end
+
+  test "UI requires auth when only api_token is set" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, nil)
+
+    conn = Plug.Test.conn(:get, "/ui") |> call()
+    assert conn.status == 401
+
+    conn =
+      Plug.Test.conn(:get, "/ui")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "admin123"))
+      |> call()
+
+    assert conn.status == 200
+  end
+
+  test "UI 401s with wrong password when both tokens are set" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    conn =
+      Plug.Test.conn(:get, "/ui")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "wrongpass"))
+      |> call()
+
+    assert conn.status == 401
+  end
+
+  test "upload link visible with api_token, hidden with ro_token" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    admin_conn =
+      Plug.Test.conn(:get, "/ui")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "admin123"))
+      |> call()
+
+    assert admin_conn.status == 200
+    assert admin_conn.resp_body =~ "Upload Packages"
+
+    ro_conn =
+      Plug.Test.conn(:get, "/ui")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "readpass"))
+      |> call()
+
+    assert ro_conn.status == 200
+    refute ro_conn.resp_body =~ "Upload Packages"
+  end
+
+  test "non-UI read paths still only accept ro_token, not api_token" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    conn =
+      Plug.Test.conn(:get, "/key.gpg")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "admin123"))
+      |> call()
+
+    assert conn.status == 401
+
+    conn =
+      Plug.Test.conn(:get, "/key.gpg")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "readpass"))
+      |> call()
+
+    assert conn.status != 401
+  end
+
   # Upload size limit
 
   test "upload within size limit succeeds" do

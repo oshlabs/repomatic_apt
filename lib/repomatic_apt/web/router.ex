@@ -45,21 +45,25 @@ defmodule RepomaticApt.Web.Router do
   end
 
   defp authorize_read(conn, _opts) do
-    token = Config.ro_token()
+    ro_token = Config.ro_token()
+    api_token = Config.api_token()
 
     cond do
-      is_nil(token) ->
-        conn
-
       match?(["healthz"], conn.path_info) ->
         conn
 
       match?(["api" | _], conn.path_info) ->
         conn
 
+      match?(["ui" | _], conn.path_info) ->
+        authorize_ui(conn, ro_token, api_token)
+
+      is_nil(ro_token) ->
+        conn
+
       true ->
         case Plug.BasicAuth.parse_basic_auth(conn) do
-          {_user, ^token} ->
+          {_user, ^ro_token} ->
             conn
 
           _ ->
@@ -68,6 +72,26 @@ defmodule RepomaticApt.Web.Router do
             |> send_resp(401, "Unauthorized")
             |> halt()
         end
+    end
+  end
+
+  defp authorize_ui(conn, nil, nil) do
+    Plug.Conn.assign(conn, :ui_write, true)
+  end
+
+  defp authorize_ui(conn, ro_token, api_token) do
+    case Plug.BasicAuth.parse_basic_auth(conn) do
+      {_user, password} when password == api_token and not is_nil(api_token) ->
+        Plug.Conn.assign(conn, :ui_write, true)
+
+      {_user, password} when password == ro_token and not is_nil(ro_token) ->
+        Plug.Conn.assign(conn, :ui_write, false)
+
+      _ ->
+        conn
+        |> put_resp_header("www-authenticate", ~s(Basic realm="RepomaticApt"))
+        |> send_resp(401, "Unauthorized")
+        |> halt()
     end
   end
 end
