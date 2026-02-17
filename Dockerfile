@@ -8,7 +8,7 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 # Build stage
 FROM ${BUILDER_IMAGE} AS build
 
-RUN apt-get update -y && apt-get install -y build-essential && apt-get clean
+RUN apt-get update -y && apt-get install -y build-essential git cmake liblzma-dev && apt-get clean
 
 WORKDIR /app
 
