@@ -407,7 +407,7 @@ defmodule RepomaticApt.Web.Ui do
   defp external_base_url(conn) do
     scheme = forwarded_header(conn, "x-forwarded-proto") || request_scheme(conn)
 
-    host = conn.host || "localhost"
+    host = forwarded_header(conn, "x-forwarded-host") || conn.host || "localhost"
 
     port =
       case forwarded_header(conn, "x-forwarded-port") do
