@@ -81,11 +81,21 @@ defmodule RepomaticApt.Web.Ui do
     next_step = if ro_token, do: "3", else: "2"
     update_step = if ro_token, do: "4", else: "3"
 
+    distributions = Config.distributions()
+
+    sources_lines =
+      Enum.map_join(distributions, "\n", fn dist ->
+        suite = dist[:suite] || "stable"
+        components = Enum.join(dist[:components] || ["main"], " ")
+        ~s(deb [signed-by=/usr/share/keyrings/repomatic_apt.gpg] #{base_url} #{suite} #{components})
+      end)
+
     html(conn, "Setup Instructions", """
     <h2>Setup Instructions</h2>
     #{auth_step}
     <h3>#{next_step}. Add the repository</h3>
-    <pre><code>echo "deb [signed-by=/usr/share/keyrings/repomatic_apt.gpg] #{base_url} stable main" | sudo tee /etc/apt/sources.list.d/repomatic_apt.list</code></pre>
+    <p>Add the lines that match your target distribution. Remove any you don't need.</p>
+    <pre><code>echo "#{escape(sources_lines)}" | sudo tee /etc/apt/sources.list.d/repomatic_apt.list</code></pre>
     <h3>#{update_step}. Update package lists</h3>
     <pre><code>sudo apt update</code></pre>
     <p><a href="/ui">&larr; Back</a></p>
