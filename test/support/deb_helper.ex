@@ -1,10 +1,18 @@
 defmodule RepomaticApt.Test.DebHelper do
   @moduledoc false
 
-  def build_deb(fields) when is_list(fields) do
+  def build_deb(fields, opts \\ []) when is_list(fields) do
     control = Enum.map_join(fields, "\n", fn {k, v} -> "#{k}: #{v}" end) <> "\n"
-    control_tar_gz = make_control_tar_gz(control)
-    make_ar([{"debian-binary", "2.0\n"}, {"control.tar.gz", control_tar_gz}, {"data.tar.gz", ""}])
+    compression = Keyword.get(opts, :control_compression, :gz)
+
+    {control_name, control_data} =
+      case compression do
+        :gz -> {"control.tar.gz", make_control_tar_gz(control)}
+        :xz -> {"control.tar.xz", make_control_tar_xz(control)}
+        :zst -> {"control.tar.zst", make_control_tar_zst(control)}
+      end
+
+    make_ar([{"debian-binary", "2.0\n"}, {control_name, control_data}, {"data.tar.gz", ""}])
   end
 
   def build_deb(name, version, arch) do
@@ -54,7 +62,7 @@ defmodule RepomaticApt.Test.DebHelper do
     ])
   end
 
-  defp make_control_tar_gz(control_content) do
+  defp make_control_tar(control_content) do
     tmp =
       Path.join(
         System.tmp_dir!(),
@@ -64,7 +72,20 @@ defmodule RepomaticApt.Test.DebHelper do
     :ok = :erl_tar.create(~c"#{tmp}", [{~c"./control", control_content}])
     tar_data = File.read!(tmp)
     File.rm!(tmp)
-    :zlib.gzip(tar_data)
+    tar_data
+  end
+
+  defp make_control_tar_gz(control_content) do
+    :zlib.gzip(make_control_tar(control_content))
+  end
+
+  defp make_control_tar_xz(control_content) do
+    {:ok, compressed} = XZ.compress(make_control_tar(control_content))
+    compressed
+  end
+
+  defp make_control_tar_zst(control_content) do
+    :ezstd.compress(make_control_tar(control_content))
   end
 
   defp make_data_tar_gz(files) do

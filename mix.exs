@@ -36,6 +36,8 @@ defmodule RepomaticApt.MixProject do
       {:plug, "~> 1.16"},
       {:bandit, "~> 1.0"},
       {:jason, "~> 1.4"},
+      {:ezstd, "~> 1.2"},
+      {:xz, "~> 0.4"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end

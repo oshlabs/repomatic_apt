@@ -61,6 +61,43 @@ defmodule RepomaticApt.Deb.PackageTest do
     assert pkg.sha256 == expected
   end
 
+  test "extracts metadata from a .deb with control.tar.xz" do
+    deb =
+      RepomaticApt.Test.DebHelper.build_deb(
+        [
+          {"Package", "hello-xz"},
+          {"Version", "2.0-1"},
+          {"Architecture", "amd64"},
+          {"Maintainer", "Test <test@example.com>"},
+          {"Description", "A test package with xz control"}
+        ],
+        control_compression: :xz
+      )
+
+    assert {:ok, pkg} = Package.extract(deb)
+    assert pkg.name == "hello-xz"
+    assert pkg.version == "2.0-1"
+  end
+
+  test "extracts metadata from a .deb with control.tar.zst" do
+    deb =
+      RepomaticApt.Test.DebHelper.build_deb(
+        [
+          {"Package", "hello-zst"},
+          {"Version", "3.0-1"},
+          {"Architecture", "arm64"},
+          {"Maintainer", "Test <test@example.com>"},
+          {"Description", "A test package with zstd control"}
+        ],
+        control_compression: :zst
+      )
+
+    assert {:ok, pkg} = Package.extract(deb)
+    assert pkg.name == "hello-zst"
+    assert pkg.version == "3.0-1"
+    assert pkg.architecture == "arm64"
+  end
+
   test "returns error for invalid archive" do
     assert {:error, :invalid_magic} = Package.extract("not a deb")
   end

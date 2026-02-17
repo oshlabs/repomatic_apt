@@ -71,7 +71,9 @@ defmodule RepomaticApt.Deb.Package do
   end
 
   defp find_control_tar(members) do
-    case Enum.find(members, fn m -> m.name in ["control.tar.gz", "control.tar"] end) do
+    case Enum.find(members, fn m ->
+           m.name in ["control.tar.gz", "control.tar", "control.tar.xz", "control.tar.zst"]
+         end) do
       nil -> {:error, :no_control_tar}
       member -> {:ok, member}
     end
@@ -84,6 +86,20 @@ defmodule RepomaticApt.Deb.Package do
 
   defp extract_control(%{name: "control.tar", data: data}) do
     extract_control_from_tar(data)
+  end
+
+  defp extract_control(%{name: "control.tar.xz", data: data}) do
+    case XZ.decompress(data) do
+      {:ok, decompressed} -> extract_control_from_tar(decompressed)
+      {:error, reason} -> {:error, {:xz_decompress, reason}}
+    end
+  end
+
+  defp extract_control(%{name: "control.tar.zst", data: data}) do
+    case :ezstd.decompress(data) do
+      {:error, reason} -> {:error, {:zstd_decompress, reason}}
+      decompressed -> extract_control_from_tar(decompressed)
+    end
   end
 
   defp extract_control_from_tar(tar_data) do
