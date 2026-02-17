@@ -33,6 +33,11 @@ defmodule RepomaticApt.Web.Ui do
         do: ~s(<a href="/ui/upload">Upload Packages</a> | ),
         else: ""
 
+    {rescan_link, rescan_script} =
+      if conn.assigns[:ui_write],
+        do: {~s[<a href="/ui" onclick="return rescan()">Rescan Pool</a> | ], rescan_script()},
+        else: {"", ""}
+
     {logout_link, logout_script} =
       if authenticated?(conn),
         do: {~s[ | <a href="/ui" onclick="return logout()">Logout</a>], logout_script()},
@@ -44,7 +49,8 @@ defmodule RepomaticApt.Web.Ui do
       "<thead><tr><th>Suite</th><th>Codename</th><th>Components</th><th>Architectures</th><th>Origin</th></tr></thead>",
       "<tbody>", rows, "</tbody>",
       "</table>",
-      "<p>", upload_link, ~s(<a href="/ui/setup">Setup Instructions</a>), logout_link, "</p>",
+      "<p>", upload_link, rescan_link, ~s(<a href="/ui/setup">Setup Instructions</a>), logout_link, "</p>",
+      rescan_script,
       logout_script
     ]))
   end
@@ -55,12 +61,15 @@ defmodule RepomaticApt.Web.Ui do
 
     auth_step =
       if ro_token do
+        escaped_token = escape(ro_token)
+        curl_auth = "apt" <> ":" <> escaped_token
+
         """
         <h3>1. Configure APT authentication</h3>
-        <pre><code>echo "machine #{base_url} login apt password #{escape(ro_token)}" | sudo tee /etc/apt/auth.conf.d/repomatic.conf
+        <pre><code>echo "machine #{base_url} login apt password #{escaped_token}" | sudo tee /etc/apt/auth.conf.d/repomatic.conf
         sudo chmod 600 /etc/apt/auth.conf.d/repomatic.conf</code></pre>
         <h3>2. Import the signing key</h3>
-        <pre><code>curl -fsSL -u apt:#{escape(ro_token)} #{base_url}/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg</code></pre>
+        <pre><code>curl -fsSL -u #{curl_auth} #{base_url}/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/repomatic_apt.gpg</code></pre>
         """
       else
         """
@@ -149,6 +158,14 @@ defmodule RepomaticApt.Web.Ui do
           upload_archive(conn, body, distribution, component)
         end
     end
+  end
+
+  get "/rescan" do
+    {:ok, count} = Repo.rescan_pool()
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(%{rescanned: count}))
   end
 
   get "/logout" do
@@ -290,6 +307,17 @@ defmodule RepomaticApt.Web.Ui do
     Plug.Parsers.call(conn, opts)
   end
 
+  defp authorize_write(%{method: "GET", path_info: ["rescan"]} = conn, _opts) do
+    if conn.assigns[:ui_write] do
+      conn
+    else
+      conn
+      |> put_resp_content_type("text/html")
+      |> send_resp(403, forbidden_page())
+      |> halt()
+    end
+  end
+
   defp authorize_write(%{method: method, path_info: ["upload"]} = conn, _opts)
        when method in ["GET", "POST"] do
     if conn.assigns[:ui_write] do
@@ -423,6 +451,10 @@ defmodule RepomaticApt.Web.Ui do
 
   defp authenticated?(conn) do
     Plug.BasicAuth.parse_basic_auth(conn) != :error
+  end
+
+  defp rescan_script do
+    ~s[<script>function rescan(){if(!confirm("Re-read every package from the pool?"))return false;var x=new XMLHttpRequest();x.open("GET","/ui/rescan",true);x.onloadend=function(){window.location.href="/ui"};x.send();return false}</script>]
   end
 
   defp logout_script do

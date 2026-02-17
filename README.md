@@ -18,6 +18,8 @@ An Elixir APT repository server. Accepts `.deb` package uploads via a REST API, 
 - **Atomic index writes** — temp file + rename to prevent partial reads
 - **Optional API authentication** via bearer token
 - **Configurable upload size limits**
+- **Metadata persistence** — on startup, rebuilds in-memory metadata from existing `Packages` index files so the UI and API resume without re-uploading
+- **Rescan Pool** — admin action to re-read every `.deb` from the pool and rebuild all metadata and indices from scratch
 - **Health check endpoint** at `/healthz`
 
 ## Quick Start
@@ -498,11 +500,35 @@ lib/repomatic_apt/
 
 ### Key design decisions
 
-- **No .deb re-reading**: Package metadata is extracted once at upload and stored in the `MetadataStore`. Index rebuilds read from the store, never from `.deb` files on disk.
+- **Metadata recovery**: The `MetadataStore` is in-memory, but metadata survives restarts. On startup the `Repo` GenServer parses existing `Packages` index files from `dists/` to repopulate the store. The "Rescan Pool" admin action goes further — it re-reads every `.deb` from the pool, re-extracts metadata, and regenerates all indices.
 - **Serialized writes**: The `Repo` GenServer serializes all add/remove operations to prevent concurrent index corruption.
 - **Pure-Elixir OpenPGP**: Signing uses Erlang's `:crypto` module directly. No GPG binary needed at runtime.
 - **Atomic writes**: Index files are written to a temp file then renamed, so clients never see partial content.
 - **Pluggable storage**: The `Store.Backend` behaviour allows swapping storage implementations. The local backend uses atomic temp-file + rename writes; the memory backend is useful for tests and ephemeral use.
+
+## Metadata Persistence
+
+The `MetadataStore` is an in-memory Agent — it does not write to a database. However, metadata is recovered automatically after a restart via two mechanisms:
+
+### Startup recovery (automatic)
+
+When the `Repo` GenServer starts, after resolving the signing key it scans the `dists/` tree for existing `Packages` index files. For each configured distribution, component, and architecture it reads `dists/{suite}/{component}/binary-{arch}/Packages`, parses the stanzas back into `%Package{}` structs, and populates the `MetadataStore`. This is fast because it reads only the index files (small text), not the `.deb` files themselves. Missing files (new or empty repo) are silently skipped.
+
+After startup recovery the UI, API, and package listings work exactly as they did before the restart. No re-upload is needed.
+
+### Rescan Pool (manual, admin-only)
+
+The "Rescan Pool" link in the web UI (visible only to admin users) triggers a full rebuild from the `.deb` files in the pool:
+
+1. Clears the entire `MetadataStore`
+2. For each configured distribution and component, recursively walks `pool/{component}/` to find all `.deb` files
+3. Reads each `.deb` binary and re-extracts metadata with `Package.extract/1` (the same path used during upload)
+4. Stores each package in the `MetadataStore`
+5. Regenerates all index files (`Packages`, `Packages.gz`, `Release`, `Release.gpg`, `InRelease`) for every distribution
+
+This is slower than startup recovery because it reads and parses every `.deb`, but it is the authoritative rebuild — useful if index files are corrupted, if `.deb` files were added to the pool outside of the API, or if you want to force a complete re-index.
+
+The rescan is also available programmatically via `RepomaticApt.Repo.rescan_pool/0`, which returns `{:ok, count}`.
 
 ## Web UI
 
@@ -511,6 +537,8 @@ The web UI is available at `/ui` and provides:
 - **Distribution overview** — list of all configured distributions
 - **Package browser** — navigate by distribution, component, and architecture
 - **Package detail** — version, description, dependencies, SHA256, download link
+- **Upload packages** — upload `.deb` or archive files (admin only)
+- **Rescan Pool** — rebuild metadata from pool `.deb` files (admin only)
 - **Setup instructions** — copy-paste commands for configuring APT clients
 
 ## Testing

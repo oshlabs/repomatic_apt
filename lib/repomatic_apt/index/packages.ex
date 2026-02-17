@@ -3,7 +3,48 @@ defmodule RepomaticApt.Index.Packages do
   Generate Packages index files from package metadata.
   """
 
+  alias RepomaticApt.Deb.Control
   alias RepomaticApt.Deb.Package
+
+  @known_fields ~w(Package Version Architecture Maintainer Installed-Size Depends Section Priority Description Filename Size SHA256)
+
+  @doc """
+  Parse a Packages index file string back into a list of `%Package{}` structs.
+  """
+  @spec parse(String.t()) :: [Package.t()]
+  def parse(content) when is_binary(content) do
+    content
+    |> String.split("\n\n")
+    |> Enum.reject(&(String.trim(&1) == ""))
+    |> Enum.map(&parse_stanza/1)
+  end
+
+  defp parse_stanza(stanza) do
+    fields = Control.parse(stanza)
+    extra = Map.drop(fields, @known_fields)
+
+    size =
+      case fields["Size"] do
+        nil -> nil
+        s -> String.to_integer(s)
+      end
+
+    %Package{
+      name: fields["Package"],
+      version: fields["Version"],
+      architecture: fields["Architecture"],
+      maintainer: fields["Maintainer"],
+      installed_size: fields["Installed-Size"],
+      depends: fields["Depends"],
+      section: fields["Section"],
+      priority: fields["Priority"],
+      description: fields["Description"],
+      filename: fields["Filename"],
+      size: size,
+      sha256: fields["SHA256"],
+      extra_fields: extra
+    }
+  end
 
   @doc """
   Generate a Packages file string from a list of `%Package{}` structs.

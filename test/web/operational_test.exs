@@ -170,6 +170,103 @@ defmodule RepomaticApt.Web.OperationalTest do
     assert conn.status == 200
   end
 
+  # Startup recovery
+
+  test "startup recovery reloads packages from existing indices" do
+    deb = DebHelper.build_deb("recover-me", "1.0", "amd64")
+    {:ok, _} = RepomaticApt.Repo.add_package("stable", "main", deb)
+
+    # Verify package is in metadata
+    assert length(RepomaticApt.Repo.list_packages("stable", "main", "amd64")) == 1
+
+    # Clear metadata to simulate restart
+    MetadataStore.clear()
+    assert RepomaticApt.Repo.list_packages("stable", "main", "amd64") == []
+
+    # Re-run load_from_indices (which init calls on startup)
+    # We can't restart the GenServer easily, so we test via rescan which
+    # exercises the same code path for pool reading, and test index parsing
+    # directly:
+    backend = RepomaticApt.Config.backend()
+
+    {:ok, content} =
+      RepomaticApt.Store.read_file(backend, "dists/stable/main/binary-amd64/Packages")
+
+    parsed = RepomaticApt.Index.Packages.parse(content)
+    assert length(parsed) == 1
+    assert hd(parsed).name == "recover-me"
+    assert hd(parsed).version == "1.0"
+
+    # Put them back
+    Enum.each(parsed, &MetadataStore.put("stable", "main", &1))
+    assert length(RepomaticApt.Repo.list_packages("stable", "main", "amd64")) == 1
+  end
+
+  # Rescan pool
+
+  test "rescan_pool restores metadata from pool .deb files" do
+    deb = DebHelper.build_deb("rescan-test", "2.0", "amd64")
+    {:ok, _} = RepomaticApt.Repo.add_package("stable", "main", deb)
+    assert length(RepomaticApt.Repo.list_packages("stable", "main", "amd64")) == 1
+
+    MetadataStore.clear()
+    assert RepomaticApt.Repo.list_packages("stable", "main", "amd64") == []
+
+    {:ok, count} = RepomaticApt.Repo.rescan_pool()
+    assert count == 1
+
+    packages = RepomaticApt.Repo.list_packages("stable", "main", "amd64")
+    assert length(packages) == 1
+    assert hd(packages).name == "rescan-test"
+    assert hd(packages).version == "2.0"
+  end
+
+  # UI rescan auth
+
+  test "UI rescan requires admin auth (403 with ro_token)" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    conn =
+      Plug.Test.conn(:get, "/ui/rescan")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "readpass"))
+      |> call()
+
+    assert conn.status == 403
+  end
+
+  test "UI rescan succeeds with admin auth" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    conn =
+      Plug.Test.conn(:get, "/ui/rescan")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "admin123"))
+      |> call()
+
+    assert conn.status == 200
+    assert Jason.decode!(conn.resp_body)["rescanned"] >= 0
+  end
+
+  test "rescan link visible with admin auth, hidden with ro_token" do
+    Application.put_env(:repomatic_apt, :api_token, "admin123")
+    Application.put_env(:repomatic_apt, :ro_token, "readpass")
+
+    admin_conn =
+      Plug.Test.conn(:get, "/ui")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "admin123"))
+      |> call()
+
+    assert admin_conn.resp_body =~ "Rescan Pool"
+
+    ro_conn =
+      Plug.Test.conn(:get, "/ui")
+      |> Plug.Conn.put_req_header("authorization", basic_auth("user", "readpass"))
+      |> call()
+
+    refute ro_conn.resp_body =~ "Rescan Pool"
+  end
+
   defp basic_auth(user, pass) do
     "Basic " <> Base.encode64("#{user}:#{pass}")
   end

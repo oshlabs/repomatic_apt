@@ -44,6 +44,48 @@ defmodule RepomaticApt.Store do
   end
 
   @doc """
+  Read a file at the given relative path via the backend.
+  """
+  @spec read_file(backend(), String.t()) :: {:ok, binary()} | {:error, term()}
+  def read_file({mod, state}, relative_path) do
+    mod.get(state, relative_path)
+  end
+
+  @doc """
+  Recursively list all entries under a path via the backend.
+
+  Returns relative paths from the given prefix (e.g. `"pool/main"`).
+  """
+  @spec list_recursive(backend(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
+  def list_recursive(backend, prefix) do
+    case list_entries(backend, prefix) do
+      {:ok, entries} -> {:ok, entries}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp list_entries({mod, state} = backend, path) do
+    case mod.list(state, path) do
+      {:ok, entries} ->
+        all =
+          Enum.flat_map(entries, fn entry ->
+            child = Path.join(path, entry)
+
+            case list_entries(backend, child) do
+              {:ok, []} -> [child]
+              {:ok, children} -> children
+              {:error, _} -> [child]
+            end
+          end)
+
+        {:ok, all}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
   Store a file at the given relative path via the backend.
   """
   @spec write_file(backend(), String.t(), iodata()) :: :ok

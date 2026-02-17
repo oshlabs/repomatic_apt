@@ -46,6 +46,46 @@ defmodule RepomaticApt.StoreTest do
     end
   end
 
+  describe "read_file/2" do
+    @tag :tmp_dir
+    test "reads an existing file", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
+      Store.write_file(backend, "a/b.txt", "content")
+      assert {:ok, "content"} = Store.read_file(backend, "a/b.txt")
+    end
+
+    @tag :tmp_dir
+    test "returns error for missing file", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
+      assert {:error, :enoent} = Store.read_file(backend, "nope.txt")
+    end
+  end
+
+  describe "list_recursive/2" do
+    @tag :tmp_dir
+    test "finds files in nested directories", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
+      Store.write_file(backend, "pool/main/h/hello/hello_1.0_amd64.deb", "deb1")
+      Store.write_file(backend, "pool/main/libn/libnss/libnss_1.0_amd64.deb", "deb2")
+      Store.write_file(backend, "pool/main/h/hello/hello_2.0_amd64.deb", "deb3")
+
+      {:ok, paths} = Store.list_recursive(backend, "pool/main")
+      debs = Enum.filter(paths, &String.ends_with?(&1, ".deb")) |> Enum.sort()
+
+      assert debs == [
+               "pool/main/h/hello/hello_1.0_amd64.deb",
+               "pool/main/h/hello/hello_2.0_amd64.deb",
+               "pool/main/libn/libnss/libnss_1.0_amd64.deb"
+             ]
+    end
+
+    @tag :tmp_dir
+    test "returns empty list for missing directory", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
+      assert {:ok, []} = Store.list_recursive(backend, "nonexistent")
+    end
+  end
+
   describe "write_with_by_hash/3" do
     @tag :tmp_dir
     test "writes file and by-hash copy, returns hash", %{tmp_dir: tmp} do

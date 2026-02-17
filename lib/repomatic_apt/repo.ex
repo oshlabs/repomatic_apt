@@ -18,9 +18,15 @@ defmodule RepomaticApt.Repo do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @spec rescan_pool() :: {:ok, non_neg_integer()}
+  def rescan_pool do
+    GenServer.call(__MODULE__, :rescan_pool, 300_000)
+  end
+
   @impl true
   def init(_opts) do
     resolve_signing_key()
+    load_from_indices()
     {:ok, %{}}
   end
 
@@ -58,6 +64,40 @@ defmodule RepomaticApt.Repo do
 
             Config.put(:signing_key, key)
         end
+    end
+  end
+
+  defp load_from_indices do
+    backend = Config.backend()
+    distributions = Config.distributions()
+    count = Enum.reduce(distributions, 0, fn dist, acc ->
+      suite = dist[:suite] || dist[:codename]
+      components = dist[:components] || ["main"]
+      architectures = dist[:architectures] || ["amd64"]
+
+      Enum.reduce(components, acc, fn component, acc2 ->
+        Enum.reduce(architectures, acc2, fn arch, acc3 ->
+          path = "dists/#{suite}/#{component}/binary-#{arch}/Packages"
+
+          case Store.read_file(backend, path) do
+            {:ok, content} ->
+              packages = Packages.parse(content)
+
+              Enum.each(packages, fn pkg ->
+                MetadataStore.put(suite, component, pkg)
+              end)
+
+              acc3 + length(packages)
+
+            {:error, _} ->
+              acc3
+          end
+        end)
+      end)
+    end)
+
+    if count > 0 do
+      Logger.info("Loaded #{count} package(s) from existing indices")
     end
   end
 
@@ -168,6 +208,56 @@ defmodule RepomaticApt.Repo do
 
       {:reply, {:ok, packages}, state}
     end
+  end
+
+  def handle_call(:rescan_pool, _from, state) do
+    MetadataStore.clear()
+    backend = Config.backend()
+    distributions = Config.distributions()
+
+    count =
+      Enum.reduce(distributions, 0, fn dist, acc ->
+        suite = dist[:suite] || dist[:codename]
+        components = dist[:components] || ["main"]
+
+        Enum.reduce(components, acc, fn component, comp_acc ->
+          pool_dir = "pool/#{component}"
+
+          deb_paths =
+            case Store.list_recursive(backend, pool_dir) do
+              {:ok, paths} -> Enum.filter(paths, &String.ends_with?(&1, ".deb"))
+              {:error, _} -> []
+            end
+
+          Enum.reduce(deb_paths, comp_acc, fn deb_path, path_acc ->
+            case Store.read_file(backend, deb_path) do
+              {:ok, deb_binary} ->
+                case Package.extract(deb_binary) do
+                  {:ok, pkg} ->
+                    pkg = %{pkg | filename: deb_path}
+                    MetadataStore.put(suite, component, pkg)
+                    path_acc + 1
+
+                  {:error, reason} ->
+                    Logger.warning("Rescan: failed to extract #{deb_path}: #{inspect(reason)}")
+                    path_acc
+                end
+
+              {:error, reason} ->
+                Logger.warning("Rescan: failed to read #{deb_path}: #{inspect(reason)}")
+                path_acc
+            end
+          end)
+        end)
+      end)
+
+    Enum.each(distributions, fn dist ->
+      suite = dist[:suite] || dist[:codename]
+      rebuild_indices(suite)
+    end)
+
+    Logger.info("Rescan complete: #{count} package(s) loaded from pool")
+    {:reply, {:ok, count}, state}
   end
 
   def handle_call({:remove_package, distribution, component, name, version, arch}, _from, state) do
