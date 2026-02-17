@@ -159,6 +159,19 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:4080/api/key/private -o 
 
 ## Custom Distributions
 
+Distributions are configured via the `REPOMATIC_DISTRIBUTIONS` environment variable as a JSON array. Each object supports these keys:
+
+| Key | Example | Description |
+|-----|---------|-------------|
+| `suite` | `"bookworm"` | Debian release target (used in the APT sources line) |
+| `codename` | `"bookworm"` | Release codename (often same as suite) |
+| `architectures` | `["amd64", "arm64"]` | Supported CPU architectures |
+| `components` | `["main", "contrib"]` | Repo sections (main, contrib, non-free, ...) |
+| `origin` | `"MyOrg"` | Metadata: project or team providing the repo |
+| `label` | `"MyOrg"` | Metadata: label shown to APT users |
+
+### Docker
+
 ```bash
 docker run -d \
   -e REPOMATIC_API_TOKEN=secret \
@@ -166,6 +179,54 @@ docker run -d \
   -p 4080:4080 \
   repomatic_apt
 ```
+
+### Kubernetes
+
+In a Kubernetes Deployment, set the env var on the container. For readability, use a YAML literal block:
+
+```yaml
+env:
+  - name: REPOMATIC_DISTRIBUTIONS
+    value: |
+      [
+        {
+          "suite": "bookworm",
+          "codename": "bookworm",
+          "architectures": ["amd64"],
+          "components": ["main"],
+          "origin": "MyOrg",
+          "label": "MyOrg"
+        }
+      ]
+```
+
+Multiple distributions (e.g. two teams publishing to bookworm and trixie):
+
+```yaml
+env:
+  - name: REPOMATIC_DISTRIBUTIONS
+    value: |
+      [
+        {
+          "suite": "bookworm",
+          "codename": "bookworm",
+          "architectures": ["amd64"],
+          "components": ["systems", "voice"],
+          "origin": "MyOrg",
+          "label": "MyOrg"
+        },
+        {
+          "suite": "trixie",
+          "codename": "trixie",
+          "architectures": ["amd64"],
+          "components": ["systems", "voice"],
+          "origin": "MyOrg",
+          "label": "MyOrg"
+        }
+      ]
+```
+
+Each team then uploads to their own component (`/api/bookworm/systems`, `/api/bookworm/voice`), and clients subscribe to the components they need in their sources.list.
 
 ## Docker Compose
 
