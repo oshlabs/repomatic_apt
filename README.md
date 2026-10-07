@@ -384,7 +384,7 @@ RepomaticApt can run inside an existing Phoenix app instead of as a standalone s
 def deps do
   [
     {:repomatic_apt, path: "../repomatic_apt"}
-    # or from Hex: {:repomatic_apt, "~> 0.2.1"}
+    # or from Hex: {:repomatic_apt, "~> 0.2.2"}
   ]
 end
 ```
