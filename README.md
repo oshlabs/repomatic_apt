@@ -109,6 +109,7 @@ The server starts on port 4080 by default. Visit `http://localhost:4080/ui` for 
 | `api_token` | `String` | `nil` | Bearer token for API auth (nil disables auth) |
 | `ro_token` | `String` | `nil` | Read-only token for repo access via HTTP Basic auth (nil means open) |
 | `max_upload_size` | `integer` | `104_857_600` | Maximum upload size in bytes (100 MB) |
+| `upload_tmp_dir` | `String` | system temp dir | Scratch directory for spooling uploads and extracting bulk archives; needs roughly 2x the largest upload free |
 | `certfile` | `String` | `nil` | Path to PEM certificate file (enables TLS when both cert and key are set) |
 | `keyfile` | `String` | `nil` | Path to PEM private key file (enables TLS when both cert and key are set) |
 | `start_server` | `boolean` | `false` | Whether to start the built-in HTTP server |
@@ -294,6 +295,8 @@ If any package fails validation, the response is 400 with details about which fi
 ```
 
 The archive is subject to the same `max_upload_size` limit as single uploads. Non-`.deb` files in the archive are ignored. The repository index is rebuilt only once after all packages are added.
+
+Bulk uploads are streamed to disk (see `upload_tmp_dir`) and unpacked one entry at a time, so server memory use is bounded by the largest single `.deb`, not by the size of the archive. The format is detected from the content, so `.tgz` and `.tar.gz` are equivalent.
 
 ### List packages
 

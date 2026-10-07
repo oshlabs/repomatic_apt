@@ -195,6 +195,33 @@ defmodule RepomaticApt.Web.BulkUploadTest do
     assert conn.status == 201
   end
 
+  test "bulk upload leaves no files behind in the upload temp dir", %{repo_root: root} do
+    tmp_dir = Path.join(root, "upload-tmp")
+    File.mkdir_p!(tmp_dir)
+    Application.put_env(:repomatic_apt, :upload_tmp_dir, tmp_dir)
+    on_exit(fn -> Application.delete_env(:repomatic_apt, :upload_tmp_dir) end)
+
+    deb = DebHelper.build_deb("tidy", "1.0", "amd64")
+    archive = make_tar_gz([{"tidy_1.0_amd64.deb", deb}])
+
+    conn =
+      Plug.Test.conn(:put, "/api/stable/main/bulk", archive)
+      |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
+      |> call()
+
+    assert conn.status == 201
+    assert File.ls!(tmp_dir) == []
+
+    # Same for a rejected archive
+    conn =
+      Plug.Test.conn(:put, "/api/stable/main/bulk", "not an archive")
+      |> Plug.Conn.put_req_header("content-type", "application/octet-stream")
+      |> call()
+
+    assert conn.status == 400
+    assert File.ls!(tmp_dir) == []
+  end
+
   test "bulk upload packages appear in repository indices", %{repo_root: root} do
     deb1 = DebHelper.build_deb("idx-bulk-a", "1.0", "amd64")
     deb2 = DebHelper.build_deb("idx-bulk-b", "2.0", "amd64")

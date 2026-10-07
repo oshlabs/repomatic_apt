@@ -108,7 +108,15 @@ defmodule RepomaticApt.Repo do
     GenServer.call(__MODULE__, {:add_package, distribution, component, deb_binary}, 30_000)
   end
 
-  @spec add_packages_bulk(String.t(), String.t(), [{String.t(), binary()}]) ::
+  @doc """
+  Add several packages atomically. `deb_entries` are `{basename, path}` pairs
+  pointing at `.deb` files on disk (see `RepomaticApt.Archive.extract_debs/2`).
+
+  Every file is validated before any is committed; on failure nothing is
+  added and the failing files are returned. Files are read one at a time so
+  memory use is bounded by the largest package, not the whole batch.
+  """
+  @spec add_packages_bulk(String.t(), String.t(), [RepomaticApt.Archive.deb_entry()]) ::
           {:ok, [Package.t()]} | {:error, [{String.t(), term()}]}
   def add_packages_bulk(distribution, component, deb_entries) do
     timeout = min(30_000 + length(deb_entries) * 10_000, 300_000)
@@ -169,11 +177,14 @@ defmodule RepomaticApt.Repo do
   end
 
   def handle_call({:add_packages_bulk, distribution, component, deb_entries}, _from, state) do
-    # Phase 1: validate all
+    # Phase 1: validate all. Only the parsed metadata is kept; the file
+    # contents are dropped again after each extract.
     results =
-      Enum.map(deb_entries, fn {filename, binary} ->
-        case Package.extract(binary) do
-          {:ok, pkg} -> {:ok, filename, binary, pkg}
+      Enum.map(deb_entries, fn {filename, path} ->
+        with {:ok, binary} <- File.read(path),
+             {:ok, pkg} <- Package.extract(binary) do
+          {:ok, filename, path, pkg}
+        else
           {:error, reason} -> {:error, filename, reason}
         end
       end)
@@ -191,10 +202,10 @@ defmodule RepomaticApt.Repo do
       backend = Config.backend()
 
       packages =
-        Enum.map(results, fn {:ok, _filename, binary, pkg} ->
+        Enum.map(results, fn {:ok, _filename, path, pkg} ->
           filename = Store.deb_filename(pkg.name, pkg.version, pkg.architecture)
           pool_path = Store.pool_path(component, pkg.name, filename)
-          Store.write_file(backend, pool_path, binary)
+          Store.write_file(backend, pool_path, File.read!(path))
 
           pkg = %{pkg | filename: pool_path}
           MetadataStore.put(distribution, component, pkg)
@@ -207,6 +218,10 @@ defmodule RepomaticApt.Repo do
         end)
 
       rebuild_indices(distribution)
+
+      # Release the per-package binaries promptly rather than waiting for
+      # the next natural GC of this long-lived process.
+      :erlang.garbage_collect()
 
       {:reply, {:ok, packages}, state}
     end

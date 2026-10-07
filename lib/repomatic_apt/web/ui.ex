@@ -43,16 +43,27 @@ defmodule RepomaticApt.Web.Ui do
         do: {~s[ | <a href="/ui" onclick="return logout()">Logout</a>], logout_script()},
         else: {"", ""}
 
-    html(conn, "Distributions", Enum.join([
-      "<h2>Distributions</h2>",
-      "<table>",
-      "<thead><tr><th>Suite</th><th>Codename</th><th>Components</th><th>Architectures</th><th>Origin</th></tr></thead>",
-      "<tbody>", rows, "</tbody>",
-      "</table>",
-      "<p>", upload_link, rescan_link, ~s(<a href="/ui/setup">Setup Instructions</a>), logout_link, "</p>",
-      rescan_script,
-      logout_script
-    ]))
+    html(
+      conn,
+      "Distributions",
+      Enum.join([
+        "<h2>Distributions</h2>",
+        "<table>",
+        "<thead><tr><th>Suite</th><th>Codename</th><th>Components</th><th>Architectures</th><th>Origin</th></tr></thead>",
+        "<tbody>",
+        rows,
+        "</tbody>",
+        "</table>",
+        "<p>",
+        upload_link,
+        rescan_link,
+        ~s(<a href="/ui/setup">Setup Instructions</a>),
+        logout_link,
+        "</p>",
+        rescan_script,
+        logout_script
+      ])
+    )
   end
 
   get "/setup" do
@@ -87,6 +98,7 @@ defmodule RepomaticApt.Web.Ui do
       Enum.map_join(distributions, "\n", fn dist ->
         suite = dist[:suite] || "stable"
         components = Enum.join(dist[:components] || ["main"], " ")
+
         ~s(deb [signed-by=/usr/share/keyrings/repomatic_apt.gpg] #{base_url} #{suite} #{components})
       end)
 
@@ -160,12 +172,10 @@ defmodule RepomaticApt.Web.Ui do
         html_error(conn, "No component selected.")
 
       true ->
-        body = File.read!(upload.path)
-
-        if deb_file?(upload.filename, body) do
-          upload_single_deb(conn, body, distribution, component)
+        if deb_file?(upload.filename, upload.path) do
+          upload_single_deb(conn, File.read!(upload.path), distribution, component)
         else
-          upload_archive(conn, body, distribution, component)
+          upload_archive(conn, upload.path, distribution, component)
         end
     end
   end
@@ -368,8 +378,11 @@ defmodule RepomaticApt.Web.Ui do
   end
 
   # ar archives (`.deb` files) start with "!<arch>\n"
-  defp deb_file?(_filename, <<"!<arch>\n", _::binary>>), do: true
-  defp deb_file?(filename, _body), do: String.ends_with?(filename || "", ".deb")
+  # A .deb is an ar archive; check the magic on disk instead of reading it all.
+  defp deb_file?(filename, path) do
+    magic = File.open!(path, [:read, :binary], fn io -> IO.binread(io, 8) end)
+    magic == "!<arch>\n" or String.ends_with?(filename || "", ".deb")
+  end
 
   defp upload_single_deb(conn, body, distribution, component) do
     case Repo.add_package(distribution, component, body) do
@@ -395,61 +408,63 @@ defmodule RepomaticApt.Web.Ui do
     end
   end
 
-  defp upload_archive(conn, body, distribution, component) do
-    case Archive.extract_debs(body) do
-      {:error, :unsupported_archive_format} ->
-        html_error(conn, "Unsupported file format. Supported: .deb, .tar.gz, .zip")
+  defp upload_archive(conn, archive_path, distribution, component) do
+    Archive.with_tmp_dir(fn tmp_dir ->
+      case Archive.extract_debs(archive_path, tmp_dir) do
+        {:error, :unsupported_archive_format} ->
+          html_error(conn, "Unsupported file format. Supported: .deb, .tar.gz, .zip")
 
-      {:error, {:extract_failed, reason}} ->
-        html_error(conn, "Failed to extract archive: #{inspect(reason)}")
+        {:error, {:extract_failed, reason}} ->
+          html_error(conn, "Failed to extract archive: #{inspect(reason)}")
 
-      {:ok, []} ->
-        html_error(conn, "Archive contains no .deb files.")
+        {:ok, []} ->
+          html_error(conn, "Archive contains no .deb files.")
 
-      {:ok, deb_entries} ->
-        case Repo.add_packages_bulk(distribution, component, deb_entries) do
-          {:ok, packages} ->
-            rows =
-              Enum.map_join(packages, "\n", fn pkg ->
-                """
-                <tr>
-                  <td>#{escape(pkg.name)}</td>
-                  <td>#{escape(pkg.version)}</td>
-                  <td>#{escape(pkg.architecture)}</td>
-                </tr>
-                """
-              end)
+        {:ok, deb_entries} ->
+          case Repo.add_packages_bulk(distribution, component, deb_entries) do
+            {:ok, packages} ->
+              rows =
+                Enum.map_join(packages, "\n", fn pkg ->
+                  """
+                  <tr>
+                    <td>#{escape(pkg.name)}</td>
+                    <td>#{escape(pkg.version)}</td>
+                    <td>#{escape(pkg.architecture)}</td>
+                  </tr>
+                  """
+                end)
 
-            html(conn, "Upload Successful", """
-            <h2>Upload Successful</h2>
-            <p>Added #{length(packages)} package(s) to #{escape(distribution)}/#{escape(component)}.</p>
-            <table>
-              <thead><tr><th>Package</th><th>Version</th><th>Architecture</th></tr></thead>
-              <tbody>#{rows}</tbody>
-            </table>
-            <p><a href="/ui/upload">Upload more</a> | <a href="/ui">&larr; Back</a></p>
-            """)
+              html(conn, "Upload Successful", """
+              <h2>Upload Successful</h2>
+              <p>Added #{length(packages)} package(s) to #{escape(distribution)}/#{escape(component)}.</p>
+              <table>
+                <thead><tr><th>Package</th><th>Version</th><th>Architecture</th></tr></thead>
+                <tbody>#{rows}</tbody>
+              </table>
+              <p><a href="/ui/upload">Upload more</a> | <a href="/ui">&larr; Back</a></p>
+              """)
 
-          {:error, failures} ->
-            rows =
-              Enum.map_join(failures, "\n", fn {file, reason} ->
-                """
-                <tr>
-                  <td>#{escape(file)}</td>
-                  <td>#{escape(to_string(reason))}</td>
-                </tr>
-                """
-              end)
+            {:error, failures} ->
+              rows =
+                Enum.map_join(failures, "\n", fn {file, reason} ->
+                  """
+                  <tr>
+                    <td>#{escape(file)}</td>
+                    <td>#{escape(to_string(reason))}</td>
+                  </tr>
+                  """
+                end)
 
-            html_error(conn, """
-            <p>Some packages failed validation:</p>
-            <table>
-              <thead><tr><th>File</th><th>Reason</th></tr></thead>
-              <tbody>#{rows}</tbody>
-            </table>
-            """)
-        end
-    end
+              html_error(conn, """
+              <p>Some packages failed validation:</p>
+              <table>
+                <thead><tr><th>File</th><th>Reason</th></tr></thead>
+                <tbody>#{rows}</tbody>
+              </table>
+              """)
+          end
+      end
+    end)
   end
 
   defp html_error(conn, message) do

@@ -29,6 +29,10 @@ if config_env() == :prod do
     config :repomatic_apt, max_upload_size: String.to_integer(max_upload)
   end
 
+  if tmp_dir = System.get_env("REPOMATIC_UPLOAD_TMP_DIR") do
+    config :repomatic_apt, upload_tmp_dir: tmp_dir
+  end
+
   if dists_json = System.get_env("REPOMATIC_DISTRIBUTIONS") do
     distributions =
       dists_json

@@ -45,6 +45,13 @@ defmodule RepomaticApt.Config do
   @spec max_upload_size() :: non_neg_integer()
   def max_upload_size, do: get(:max_upload_size, 100 * 1024 * 1024)
 
+  @doc """
+  Directory for spooling uploads and extracting bulk archives (default: the
+  system temp dir). Needs room for roughly twice the largest upload.
+  """
+  @spec upload_tmp_dir() :: Path.t()
+  def upload_tmp_dir, do: get(:upload_tmp_dir, System.tmp_dir!())
+
   @doc "API bearer token for authentication. nil means no auth required."
   @spec api_token() :: String.t() | nil
   def api_token, do: get(:api_token)
