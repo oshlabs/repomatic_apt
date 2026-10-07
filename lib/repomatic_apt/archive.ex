@@ -43,6 +43,31 @@ defmodule RepomaticApt.Archive do
   end
 
   @doc """
+  Remove scratch directories left behind in the upload temp dir by uploads
+  that were interrupted (e.g. the process died mid-upload).
+
+  Only safe to call when no upload is in flight, i.e. at startup, and the
+  upload temp dir must not be shared with another running instance.
+  Returns the number of directories removed.
+  """
+  @spec sweep_stale_tmp_dirs() :: non_neg_integer()
+  def sweep_stale_tmp_dirs do
+    base = Config.upload_tmp_dir()
+
+    case File.ls(base) do
+      {:ok, entries} ->
+        entries
+        |> Enum.filter(&String.starts_with?(&1, @tmp_dir_prefix))
+        |> Enum.map(&Path.join(base, &1))
+        |> Enum.filter(&File.dir?/1)
+        |> Enum.count(fn dir -> match?({:ok, _}, File.rm_rf(dir)) end)
+
+      {:error, _} ->
+        0
+    end
+  end
+
+  @doc """
   Create a fresh scratch directory under the configured upload temp dir,
   run `fun` with its path, and remove the directory afterwards — including
   when `fun` raises or throws.

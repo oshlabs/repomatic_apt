@@ -123,6 +123,37 @@ defmodule RepomaticApt.ArchiveTest do
     end
   end
 
+  describe "sweep_stale_tmp_dirs/0" do
+    test "removes orphaned upload dirs and nothing else", %{tmp: tmp} do
+      Application.put_env(:repomatic_apt, :upload_tmp_dir, tmp)
+      on_exit(fn -> Application.delete_env(:repomatic_apt, :upload_tmp_dir) end)
+
+      stale1 = Path.join(tmp, "repomatic_apt_upload_1_2")
+      stale2 = Path.join(tmp, "repomatic_apt_upload_3_4")
+      other_dir = Path.join(tmp, "something_else")
+      other_file = Path.join(tmp, "repomatic_apt_upload_not_a_dir")
+      File.mkdir_p!(Path.join(stale1, "debs"))
+      File.write!(Path.join(stale1, "upload.archive"), "x")
+      File.mkdir_p!(stale2)
+      File.mkdir_p!(other_dir)
+      File.write!(other_file, "x")
+
+      assert Archive.sweep_stale_tmp_dirs() == 2
+
+      refute File.exists?(stale1)
+      refute File.exists?(stale2)
+      assert File.dir?(other_dir)
+      assert File.exists?(other_file)
+    end
+
+    test "returns 0 when the temp dir does not exist", %{tmp: tmp} do
+      Application.put_env(:repomatic_apt, :upload_tmp_dir, Path.join(tmp, "missing"))
+      on_exit(fn -> Application.delete_env(:repomatic_apt, :upload_tmp_dir) end)
+
+      assert Archive.sweep_stale_tmp_dirs() == 0
+    end
+  end
+
   describe "with_tmp_dir/1" do
     test "creates a directory under upload_tmp_dir and removes it afterwards", %{tmp: tmp} do
       Application.put_env(:repomatic_apt, :upload_tmp_dir, tmp)

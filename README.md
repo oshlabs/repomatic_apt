@@ -298,6 +298,8 @@ The archive is subject to the same `max_upload_size` limit as single uploads. No
 
 Bulk uploads are streamed to disk (see `upload_tmp_dir`) and unpacked one entry at a time, so server memory use is bounded by the largest single `.deb`, not by the size of the archive. The format is detected from the content, so `.tgz` and `.tar.gz` are equivalent.
 
+Packages are only published once every file in the archive has been written to the pool and the indices have been regenerated, so an upload interrupted by a crash leaves the published repository unchanged. On startup the server removes any scratch directories and `*.tmp.*` files such a crash left behind; for that reason `upload_tmp_dir` must not be shared between running instances.
+
 ### List packages
 
 ```sh

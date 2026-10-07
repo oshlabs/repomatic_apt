@@ -26,8 +26,20 @@ defmodule RepomaticApt.Repo do
   @impl true
   def init(_opts) do
     resolve_signing_key()
+    sweep_leftovers()
     load_from_indices()
     {:ok, %{}}
+  end
+
+  # Clean up after any upload that was interrupted by a crash. Runs before
+  # the HTTP server starts, so nothing can be in flight.
+  defp sweep_leftovers do
+    dirs = RepomaticApt.Archive.sweep_stale_tmp_dirs()
+    files = Store.sweep_tmp_files(Config.backend())
+
+    if dirs > 0 or files > 0 do
+      Logger.info("Swept #{dirs} stale upload dir(s) and #{files} leftover temp file(s)")
+    end
   end
 
   defp resolve_signing_key do

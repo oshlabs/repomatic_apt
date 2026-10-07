@@ -106,6 +106,33 @@ defmodule RepomaticApt.StoreTest do
     end
   end
 
+  describe "sweep_tmp_files/1" do
+    @tag :tmp_dir
+    test "removes leftover temp files and keeps everything else", %{tmp_dir: tmp} do
+      backend = {Local, Local.new(tmp)}
+      Store.write_file(backend, "pool/main/h/hello/hello_1.0_amd64.deb", "deb")
+      Store.write_file(backend, "dists/stable/main/binary-amd64/Packages", "idx")
+      File.write!(Path.join(tmp, "pool/main/h/hello/hello_1.0_amd64.deb.tmp.123"), "partial")
+      File.write!(Path.join(tmp, "dists/stable/Release.tmp.9"), "partial")
+      File.write!(Path.join(tmp, "dists/stable/main/binary-amd64/Packages.tmp.42"), "partial")
+      File.write!(Path.join(tmp, "signing_key.etf.tmp.1"), "outside pool/dists, left alone")
+
+      assert Store.sweep_tmp_files(backend) == 3
+
+      assert File.exists?(Path.join(tmp, "pool/main/h/hello/hello_1.0_amd64.deb"))
+      assert File.exists?(Path.join(tmp, "dists/stable/main/binary-amd64/Packages"))
+      assert File.exists?(Path.join(tmp, "signing_key.etf.tmp.1"))
+      refute File.exists?(Path.join(tmp, "pool/main/h/hello/hello_1.0_amd64.deb.tmp.123"))
+      refute File.exists?(Path.join(tmp, "dists/stable/Release.tmp.9"))
+      refute File.exists?(Path.join(tmp, "dists/stable/main/binary-amd64/Packages.tmp.42"))
+    end
+
+    @tag :tmp_dir
+    test "returns 0 on an empty repo", %{tmp_dir: tmp} do
+      assert Store.sweep_tmp_files({Local, Local.new(tmp)}) == 0
+    end
+  end
+
   describe "cleanup_by_hash/3" do
     @tag :tmp_dir
     test "removes stale hashes and keeps current ones", %{tmp_dir: tmp} do

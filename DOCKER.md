@@ -23,7 +23,7 @@ The server will auto-generate a signing key on first start and persist it in the
 | `REPOMATIC_API_TOKEN` | *(none — no auth)* | Bearer token for API auth |
 | `REPOMATIC_RO_TOKEN` | *(none — open read)* | Read-only token for repo access (HTTP Basic auth) |
 | `REPOMATIC_MAX_UPLOAD_SIZE` | `104857600` (100 MB) | Max upload bytes |
-| `REPOMATIC_UPLOAD_TMP_DIR` | system temp dir (`/tmp`) | Scratch dir for spooling uploads and unpacking bulk archives; needs ~2x the largest upload free, must be writable |
+| `REPOMATIC_UPLOAD_TMP_DIR` | system temp dir (`/tmp`) | Scratch dir for spooling uploads and unpacking bulk archives; needs ~2x the largest upload free, must be writable and not shared between instances (leftovers are swept at startup) |
 | `REPOMATIC_DISTRIBUTIONS` | See dev.exs | JSON array of distribution objects |
 | `REPOMATIC_SIGNING_KEY` | *(none)* | Signing key as base64-encoded ETF string (in-memory only, no disk write) |
 | `REPOMATIC_SIGNING_KEY_PATH` | *(none)* | Path to ETF key file |

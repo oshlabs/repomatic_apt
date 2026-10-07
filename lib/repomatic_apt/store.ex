@@ -111,6 +111,27 @@ defmodule RepomaticApt.Store do
   end
 
   @doc """
+  Remove leftover `*.tmp.<n>` files under `pool/` and `dists/`.
+
+  Backends write atomically via temp file + rename; a crash between the two
+  leaves the temp file behind. Returns the number of files removed.
+  """
+  @spec sweep_tmp_files(backend()) :: non_neg_integer()
+  def sweep_tmp_files({mod, state} = backend) do
+    ["pool", "dists"]
+    |> Enum.flat_map(fn prefix ->
+      case list_recursive(backend, prefix) do
+        {:ok, paths} -> paths
+        {:error, _} -> []
+      end
+    end)
+    |> Enum.filter(&tmp_file?/1)
+    |> Enum.count(fn path -> mod.delete(state, path) == :ok end)
+  end
+
+  defp tmp_file?(path), do: Regex.match?(~r/\.tmp\.\d+$/, Path.basename(path))
+
+  @doc """
   Clean up old by-hash entries, keeping only hashes present in `current_hashes`.
   """
   @spec cleanup_by_hash(backend(), String.t(), [String.t()]) :: :ok
