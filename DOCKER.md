@@ -3,7 +3,7 @@
 ## Quick Start
 
 ```bash
-docker build -t repomatic_apt .
+docker build --build-arg GIT_REV=$(git rev-parse --short HEAD) -t repomatic_apt .
 docker run -d \
   -p 4080:4080 \
   -v repomatic_data:/var/lib/repomatic_apt/repo \

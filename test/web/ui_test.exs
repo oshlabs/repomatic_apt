@@ -137,6 +137,12 @@ defmodule RepomaticApt.Web.UiTest do
     assert conn.resp_body =~ "no .deb files"
   end
 
+  test "GET /ui shows version and git revision in the heading" do
+    conn = Plug.Test.conn(:get, "/ui") |> call()
+    assert conn.resp_body =~ ~s(<span class="build">#{RepomaticApt.Build.display()}</span>)
+    assert conn.resp_body =~ "v#{RepomaticApt.Build.version()}"
+  end
+
   test "GET /ui shows link to upload page" do
     conn = Plug.Test.conn(:get, "/ui") |> call()
     assert conn.status == 200

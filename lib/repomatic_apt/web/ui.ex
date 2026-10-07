@@ -291,10 +291,11 @@ defmodule RepomaticApt.Web.Ui do
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>#{title} - RepomaticApt</title>
+      <title>#{title} - RepomaticApt #{RepomaticApt.Build.display()}</title>
       <style>
         body { font-family: system-ui, sans-serif; max-width: 1800px; margin: 2em auto; padding: 0 1em; color: #333; }
         h1 a { color: inherit; text-decoration: none; }
+        h1 .build { font-size: 0.5em; font-weight: normal; color: #888; margin-left: 0.75em; }
         table { border-collapse: collapse; width: 100%; margin: 1em 0; table-layout: auto; }
         th, td { border: 1px solid #ddd; padding: 0.5em 0.75em; text-align: left; }
         td:nth-child(2) { white-space: nowrap; }
@@ -306,7 +307,7 @@ defmodule RepomaticApt.Web.Ui do
       </style>
     </head>
     <body>
-      <h1><a href="/ui">RepomaticApt</a></h1>
+      <h1><a href="/ui">RepomaticApt</a><span class="build">#{RepomaticApt.Build.display()}</span></h1>
       #{body}
     </body>
     </html>

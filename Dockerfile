@@ -14,6 +14,11 @@ WORKDIR /app
 
 ENV MIX_ENV=prod
 
+# Short git revision shown in the web UI; the build context has no .git, so pass it in:
+#   docker build --build-arg GIT_REV=$(git rev-parse --short HEAD) ...
+ARG GIT_REV=""
+ENV REPOMATIC_GIT_REV=$GIT_REV
+
 RUN mix local.hex --force && mix local.rebar --force
 
 COPY mix.exs mix.lock ./
