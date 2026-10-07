@@ -70,31 +70,33 @@ defmodule RepomaticApt.Repo do
   defp load_from_indices do
     backend = Config.backend()
     distributions = Config.distributions()
-    count = Enum.reduce(distributions, 0, fn dist, acc ->
-      suite = dist[:suite] || dist[:codename]
-      components = dist[:components] || ["main"]
-      architectures = dist[:architectures] || ["amd64"]
 
-      Enum.reduce(components, acc, fn component, acc2 ->
-        Enum.reduce(architectures, acc2, fn arch, acc3 ->
-          path = "dists/#{suite}/#{component}/binary-#{arch}/Packages"
+    count =
+      Enum.reduce(distributions, 0, fn dist, acc ->
+        suite = dist[:suite] || dist[:codename]
+        components = dist[:components] || ["main"]
+        architectures = dist[:architectures] || ["amd64"]
 
-          case Store.read_file(backend, path) do
-            {:ok, content} ->
-              packages = Packages.parse(content)
+        Enum.reduce(components, acc, fn component, acc2 ->
+          Enum.reduce(architectures, acc2, fn arch, acc3 ->
+            path = "dists/#{suite}/#{component}/binary-#{arch}/Packages"
 
-              Enum.each(packages, fn pkg ->
-                MetadataStore.put(suite, component, pkg)
-              end)
+            case Store.read_file(backend, path) do
+              {:ok, content} ->
+                packages = Packages.parse(content)
 
-              acc3 + length(packages)
+                Enum.each(packages, fn pkg ->
+                  MetadataStore.put(suite, component, pkg)
+                end)
 
-            {:error, _} ->
-              acc3
-          end
+                acc3 + length(packages)
+
+              {:error, _} ->
+                acc3
+            end
+          end)
         end)
       end)
-    end)
 
     if count > 0 do
       Logger.info("Loaded #{count} package(s) from existing indices")
