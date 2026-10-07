@@ -18,6 +18,12 @@ defmodule RepomaticApt.MetadataStore do
     Agent.update(__MODULE__, &Map.put(&1, key, package))
   end
 
+  @spec get(String.t(), String.t(), String.t(), String.t(), String.t()) :: Package.t() | nil
+  def get(distribution, component, name, version, arch) do
+    key = {distribution, component, arch, name, version}
+    Agent.get(__MODULE__, &Map.get(&1, key))
+  end
+
   @spec delete(String.t(), String.t(), String.t(), String.t(), String.t()) :: :ok
   def delete(distribution, component, name, version, arch) do
     key = {distribution, component, arch, name, version}

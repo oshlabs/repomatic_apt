@@ -101,9 +101,11 @@ defmodule RepomaticApt.RepoTest do
     assert File.exists?(Path.join(root, "dists/stable/InRelease"))
   end
 
-  test "remove_package removes from index", %{repo_root: root} do
+  test "remove_package removes from index and deletes the pool file", %{repo_root: root} do
     deb = DebHelper.build_deb("goodbye", "2.0", "amd64")
-    {:ok, _pkg} = Repo.add_package("stable", "main", deb)
+    {:ok, pkg} = Repo.add_package("stable", "main", deb)
+    pool_file = Path.join(root, pkg.filename)
+    assert File.exists?(pool_file)
 
     packages_path = Path.join(root, "dists/stable/main/binary-amd64/Packages")
     assert File.read!(packages_path) =~ "Package: goodbye"
@@ -111,6 +113,24 @@ defmodule RepomaticApt.RepoTest do
     :ok = Repo.remove_package("stable", "main", "goodbye", "2.0", "amd64")
 
     refute File.read!(packages_path) =~ "Package: goodbye"
+    refute File.exists?(pool_file)
+    assert Repo.list_packages("stable", "main") == []
+  end
+
+  test "remove_package returns not_found for an unknown package" do
+    assert {:error, :not_found} = Repo.remove_package("stable", "main", "nope", "1.0", "amd64")
+  end
+
+  test "removed packages do not come back on rescan_pool", %{repo_root: root} do
+    {:ok, _} = Repo.add_package("stable", "main", DebHelper.build_deb("stays", "1.0", "amd64"))
+    {:ok, _} = Repo.add_package("stable", "main", DebHelper.build_deb("goes", "1.0", "amd64"))
+    :ok = Repo.remove_package("stable", "main", "goes", "1.0", "amd64")
+
+    assert {:ok, 1} = Repo.rescan_pool()
+    assert Enum.map(Repo.list_packages("stable", "main"), & &1.name) == ["stays"]
+
+    refute File.read!(Path.join(root, "dists/stable/main/binary-amd64/Packages")) =~
+             "Package: goes"
   end
 
   test "list_packages returns added packages" do

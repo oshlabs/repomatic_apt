@@ -69,6 +69,12 @@ defmodule RepomaticApt.Web.RouterTest do
     assert hd(body["packages"])["name"] == "test-pkg"
   end
 
+  test "DELETE /api returns 404 for an unknown package" do
+    conn = Plug.Test.conn(:delete, "/api/stable/main/ghost/1.0/amd64") |> call()
+    assert conn.status == 404
+    assert Jason.decode!(conn.resp_body)["error"] =~ "not found"
+  end
+
   test "DELETE /api removes a package" do
     deb = DebHelper.build_deb("removeme", "1.0", "amd64")
 

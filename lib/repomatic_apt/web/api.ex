@@ -118,8 +118,10 @@ defmodule RepomaticApt.Web.Api do
   end
 
   delete "/:distribution/:component/:name/:version/:arch" do
-    :ok = RepomaticApt.Repo.remove_package(distribution, component, name, version, arch)
-    json(conn, 200, %{deleted: true})
+    case RepomaticApt.Repo.remove_package(distribution, component, name, version, arch) do
+      :ok -> json(conn, 200, %{deleted: true})
+      {:error, :not_found} -> json(conn, 404, %{error: "Package not found"})
+    end
   end
 
   get "/:distribution/:component" do

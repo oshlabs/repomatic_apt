@@ -86,6 +86,14 @@ defmodule RepomaticApt.Store do
   end
 
   @doc """
+  Delete a file at the given relative path via the backend. Missing files are not an error.
+  """
+  @spec delete_file(backend(), String.t()) :: :ok | {:error, term()}
+  def delete_file({mod, state}, relative_path) do
+    mod.delete(state, relative_path)
+  end
+
+  @doc """
   Store a file at the given relative path via the backend.
   """
   @spec write_file(backend(), String.t(), iodata()) :: :ok

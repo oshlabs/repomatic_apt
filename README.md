@@ -333,6 +333,8 @@ Response (200):
 {"deleted": true}
 ```
 
+Deleting removes the `.deb` from the pool as well as from the indices, so a later Rescan Pool will not bring it back. Unknown packages return `404`. Version strings go in the URL as-is (`~` and `+` need no encoding).
+
 ### Health check
 
 ```sh

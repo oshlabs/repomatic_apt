@@ -140,7 +140,13 @@ defmodule RepomaticApt.Repo do
     )
   end
 
-  @spec remove_package(String.t(), String.t(), String.t(), String.t(), String.t()) :: :ok
+  @doc """
+  Remove a package: deletes its `.deb` from the pool, drops it from the
+  metadata and rebuilds the indices. Returns `{:error, :not_found}` if no
+  such package is known.
+  """
+  @spec remove_package(String.t(), String.t(), String.t(), String.t(), String.t()) ::
+          :ok | {:error, :not_found}
   def remove_package(distribution, component, name, version, arch) do
     GenServer.call(__MODULE__, {:remove_package, distribution, component, name, version, arch})
   end
@@ -290,12 +296,30 @@ defmodule RepomaticApt.Repo do
   end
 
   def handle_call({:remove_package, distribution, component, name, version, arch}, _from, state) do
-    MetadataStore.delete(distribution, component, name, version, arch)
+    case MetadataStore.get(distribution, component, name, version, arch) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
 
-    Logger.info("Package removed: #{name} #{version} #{arch} from #{distribution}/#{component}")
+      pkg ->
+        if pkg.filename do
+          case Store.delete_file(Config.backend(), pkg.filename) do
+            :ok ->
+              :ok
 
-    rebuild_indices(distribution)
-    {:reply, :ok, state}
+            {:error, reason} ->
+              Logger.warning("Could not delete #{pkg.filename}: #{inspect(reason)}")
+          end
+        end
+
+        MetadataStore.delete(distribution, component, name, version, arch)
+
+        Logger.info(
+          "Package removed: #{name} #{version} #{arch} from #{distribution}/#{component}"
+        )
+
+        rebuild_indices(distribution)
+        {:reply, :ok, state}
+    end
   end
 
   defp rebuild_indices(distribution) do
