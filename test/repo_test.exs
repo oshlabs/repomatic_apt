@@ -34,6 +34,40 @@ defmodule RepomaticApt.RepoTest do
     %{repo_root: tmp}
   end
 
+  test "Architecture: all packages are listed in every per-arch index", %{repo_root: root} do
+    Application.put_env(:repomatic_apt, :distributions, [
+      %{
+        suite: "stable",
+        codename: "stable",
+        architectures: ["amd64", "arm64"],
+        components: ["main"]
+      }
+    ])
+
+    assert {:ok, _} =
+             Repo.add_package("stable", "main", DebHelper.build_deb("native", "1.0", "amd64"))
+
+    assert {:ok, _} =
+             Repo.add_package("stable", "main", DebHelper.build_deb("indep", "2.0", "all"))
+
+    amd64 = File.read!(Path.join(root, "dists/stable/main/binary-amd64/Packages"))
+    arm64 = File.read!(Path.join(root, "dists/stable/main/binary-arm64/Packages"))
+
+    assert amd64 =~ "Package: native"
+    assert amd64 =~ "Package: indep"
+    assert arm64 =~ "Package: indep"
+    refute arm64 =~ "Package: native"
+    refute File.exists?(Path.join(root, "dists/stable/main/binary-all/Packages"))
+
+    # Per-arch listing (API and UI) includes the arch-all package too
+    assert Enum.map(Repo.list_packages("stable", "main", "amd64"), & &1.name) |> Enum.sort() ==
+             ["indep", "native"]
+
+    assert Enum.map(Repo.list_packages("stable", "main", "arm64"), & &1.name) == ["indep"]
+    assert Enum.map(Repo.list_packages("stable", "main", "all"), & &1.name) == ["indep"]
+    assert length(Repo.list_packages("stable", "main")) == 2
+  end
+
   test "add_package stores deb and creates indices", %{repo_root: root} do
     deb = DebHelper.build_deb("hello", "1.0-1", "amd64")
     assert {:ok, pkg} = Repo.add_package("stable", "main", deb)

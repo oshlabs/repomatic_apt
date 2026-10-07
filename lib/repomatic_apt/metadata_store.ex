@@ -35,6 +35,18 @@ defmodule RepomaticApt.MetadataStore do
     end)
   end
 
+  @doc """
+  Packages that belong in the `binary-<arch>` index: those built for `arch`
+  plus the architecture-independent (`Architecture: all`) ones, which Debian
+  expects to appear in every per-architecture index.
+  """
+  @spec list_for_arch(String.t(), String.t(), String.t()) :: [Package.t()]
+  def list_for_arch(distribution, component, "all"), do: list(distribution, component, "all")
+
+  def list_for_arch(distribution, component, arch) do
+    list(distribution, component, arch) ++ list(distribution, component, "all")
+  end
+
   @spec list_all(String.t(), String.t()) :: [Package.t()]
   def list_all(distribution, component) do
     Agent.get(__MODULE__, fn store ->

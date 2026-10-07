@@ -148,7 +148,7 @@ defmodule RepomaticApt.Repo do
   @spec list_packages(String.t(), String.t(), String.t() | nil) :: [Package.t()]
   def list_packages(distribution, component, arch \\ nil) do
     if arch do
-      MetadataStore.list(distribution, component, arch)
+      MetadataStore.list_for_arch(distribution, component, arch)
     else
       MetadataStore.list_all(distribution, component)
     end
@@ -306,7 +306,7 @@ defmodule RepomaticApt.Repo do
 
     all_files =
       for component <- components, arch <- architectures do
-        packages = MetadataStore.list(distribution, component, arch)
+        packages = MetadataStore.list_for_arch(distribution, component, arch)
         content = Packages.generate(packages)
         gz_content = Compress.gzip(content)
 
